@@ -15,6 +15,7 @@ import datetime
 import boto3
 import os
 
+
 ssm=boto3.client('ssm',region_name=os.getenv('AWS_REGION','ap-south-1'))
 
 def get_ssm_param(name):
@@ -36,9 +37,7 @@ DEBUG = True
 ALLOWED_HOSTS = ['13.234.124.118','13.233.78.207','localhost','127.0.0.1']
 
 
-CORS_ALLOW_CREDENTIALS = True
-CORS_URLS_REGEX = r"^/(user)/.*"
-
+# In your DEBUG section, update:
 if DEBUG:
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:5173", 
@@ -46,11 +45,41 @@ if DEBUG:
     ]
 else:
     CORS_ALLOWED_ORIGINS = [
-        # Add your production frontend URLs here
-           "http://localhost:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        # Add your production frontend URLs here when you deploy frontend
     ]
 
-# Application definition
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://13.234.124.118",  # Add your backend server
+    "http://13.233.78.207",   # Add your other backend server
+]
+
+# Add this to allow all methods
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Add this to allow headers
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'mcp_server',
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -71,6 +100,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -109,6 +139,8 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+
 
 # DATABASES = {
 #     'default': {
@@ -171,7 +203,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK={
   'DEFAULT_AUTHENTICATION_CLASSES':[
       'rest_framework.authentication.SessionAuthentication',
-          "rest_framework_simplejwt.authentication.JWTAuthentication",
+        #   "rest_framework_simplejwt.authentication.JWTAuthentication", # it reads token from  'Authorization: Bearer <token>' but we are using cookies
+      'api.authentication.CookieJWTAuthentication'  # so we built custom auth
   ],
     "DEFAULT_PERMISSION_CLASSES":[
                    "rest_framework.permissions.IsAuthenticatedOrReadOnly"
@@ -192,3 +225,15 @@ AWS_SECRET_ACCESS_KEY = get_ssm_param('/Ecommerce/aws_secret_access_key')
 AWS_S3_REGION_NAME = get_ssm_param('/Ecommerce/aws_s3_region_name')
 AWS_STORAGE_BUCKET_NAME = get_ssm_param('/StudyBud/s3_bucket_name')
 AWS_SNS_ARN=get_ssm_param('/StudyBud/sns_arn')
+
+DJANGO_MCP_GLOBAL_SERVER_CONFIG = {
+    "name": "Ecommerce MCP Server",
+    "instructions": "Read-only MCP tools for ecommerce users, carts, and orders.",
+}
+
+# settings.py
+REST_FRAMEWORK = {  # if we want decimal values to be string Make it "True"  decimal on frontend caues rounding errors so string is better(True)
+    'COERCE_DECIMAL_TO_STRING': False,
+}
+
+AUTH_USER_MODEL = 'api.User'

@@ -5,7 +5,8 @@ from rest_framework.permissions import IsAuthenticated,IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth.models import User
+# from django.contrib.auth.models import User
+from .models import User
 from .serializers import UserRegistrationSerializer
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
@@ -24,13 +25,15 @@ class UserRegistrationView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user=serializer.save()
         refresh=RefreshToken.for_user(user)
+        refresh['role_model']=user.role_model
+        
 
         response=Response({
             'user':{
                 'id':user.id,
                 'username':user.username,
                 'email':user.email,
-
+                'role_model':user.role_model
             },
 
         },
@@ -44,8 +47,8 @@ class UserRegistrationView(generics.CreateAPIView):
             httponly=True,
             secure=False ,
             samesite="Strict",
-            # max_age=cookie_max_age,
-            expires=datetime.now()+timedelta(seconds=cookie_max_age)
+            max_age=cookie_max_age,
+            # expires=datetime.now()+timedelta(seconds=cookie_max_age)
 
         )
 
@@ -87,12 +90,14 @@ class UserLoginView(APIView):
             )
 
         refresh = RefreshToken.for_user(user)
+        refresh["role_model"]=user.role_model
 
         response = Response({
             'user': {
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
+                'role_model':user.role_model
             },
             'message': 'Login successful'
         }, status=status.HTTP_200_OK)
@@ -119,7 +124,7 @@ class UserLoginView(APIView):
         return response
     
 class UserLogoutView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         response = Response({
@@ -137,13 +142,21 @@ class CookieTokenRefreshView(TokenRefreshView):
     serializer_class =TokenRefreshSerializer
 
     def post(self,request,*args,**kwargs):
-        refresh_token=self.request.COOKIES.get('refresh')
+        refresh_token=self.request.COOKIES.get('refresh_token')
         if refresh_token is None:
             return Response ({'error':'Refresh token is missing'},status=400)
         
         serializer=self.get_serializer(data={'refresh':refresh_token})
         serializer.is_valid(raise_exception=True)
-        return Response({'access':serializer.validated_data['access']})
+        
+        response.set_cookie(             
+            key='access',
+            value=serializer.validated_data['access'],
+            httponly=False,
+            secure=False,
+            samesite='Strict',
+        )
+        return response
 
 
 
@@ -151,7 +164,7 @@ class CookieTokenRefreshView(TokenRefreshView):
 class CSRFTokenView(APIView):
   
   def get(self,request,format=None):
-    return Response({'csrfToken':request.Meta.get('CSRF_COOKIE')})
+    return Response({'csrfToken':request.META.get('CSRF_COOKIE')})
 
 
 

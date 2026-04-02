@@ -1,4 +1,5 @@
-from django.contrib.auth.models import User
+# from django.contrib.auth.models import User
+from .models import User
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 
@@ -13,10 +14,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     password=serializers.CharField(write_only=True,validators=[validate_password])
     confirm_password=serializers.CharField(write_only=True)
+    role_model=serializers.ChoiceField(choices=['seller','buyer'])
 
     class Meta:
         model=User
-        fields=['username','first_name','last_name','email','password','confirm_password']
+        fields=['username','first_name','last_name','role_model','email','password','confirm_password']
 
     def validate(self,attrs):
         if attrs['password']!=attrs['confirm_password']:
@@ -35,5 +37,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         last_name=validated_data.get('last_name', ''),
         email=validated_data['email'],
         password=validated_data['password'],
+        role_model=validated_data['role_model']
     )
         return user
