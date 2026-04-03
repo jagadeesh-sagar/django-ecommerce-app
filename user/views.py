@@ -1,8 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework import generics,mixins,status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated,AllowAny
-from .permissions import IsBuyer,IsSeller,IsSellerOrReadOnly,IsProductOwner
+from rest_framework.permissions import IsAuthenticated,AllowAny,IsAdminUser
+from .permissions import IsBuyer,IsSeller,IsSellerOrReadOnly,IsProductOwner,IsAdminOrReadonly
 from django.db.models import Q
 from . import models
 from . import serializers
@@ -67,7 +67,7 @@ class ProductCreateGenericView(APIView):
     sideEffects:
         - publishes SNS notification after Product creation
     '''
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated,IsSeller]
 
     sns_client=boto3.client("sns",aws_access_key_id = settings.AWS_ACCESS_KEY_ID,
                            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
@@ -424,18 +424,37 @@ class ProductImageListview(APIView):
         # file_name for path in s3 , file_type is to seperate videos,images 
         file_name=self.request.GET.get('file_name')
         file_type=self.request.GET.get('file_type')
+        product_id=self.request.GET.get('product_id')
+
+        if not all([file_name,file_type,product_id]) :
+            return Response({"error":'file_name,file_type and product_id aren required parameters'},
+                            status=status.HTTP_400_BAD_REQUEST)
         
+        try:
+            product=models.Product.objects.get(id=product_id)
+        
+            if product.seller.user!=user:  # checking whether the user is actuall seller of the product
+                return Response(
+                    {"error":"you dont have enough permission to upload media"},
+                    status=status.HTTP_403_FORBIDDEN)
+        
+        except models.Product.DoesNotExist:
+            return Response({"error":"product does not exist"},status=status.HTTP_404_NOT_FOUND)
+        except Seller.DoesNotExist:
+            return Response({"error":"user does not registerd as a seller"},status=status.HTTP_404_NOT_FOUND)
+
+    
         # generate presigned urls for temporary credentials to upload media from front-end
         presigned_urls=self.s3_client.generate_presigned_url(
             'put_object',
-            Params={'Bucket':settings.AWS_STORAGE_BUCKET_NAME,'Key':f'{user}/{file_type}/{file_name}'},
+            Params={'Bucket':settings.AWS_STORAGE_BUCKET_NAME,'Key':f'{user}/{product_id}/{file_type}/{file_name}'},
             ExpiresIn=3600
         )
         # its url that gets generated after successful upload from front-end
-        url=f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonsaws.com/{user}/{file_type}/{file_name}'
+        url=f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonsaws.com/{user}/{product_id}/{file_type}/{file_name}'
         
         return Response({'upload_url':presigned_urls,'file_url':url,
-                         'bucket':settings.AWS_STORAGE_BUCKET_NAME,'key':f'{user}/{file_type}/{file_name}'},
+                         'bucket':settings.AWS_STORAGE_BUCKET_NAME,'key':f'{user}/{product_id}/{file_type}/{file_name}'},
                          status=status.HTTP_200_OK)
     
     def post(self,request):
@@ -443,12 +462,58 @@ class ProductImageListview(APIView):
         Uploaded url's of media
 
         Request Body:
+        ```json
 
+            {
+            "image_url": "URL (String)",
+            "alt_text": "String (Optional)",
+            "video_url": "URL (Optional/String)",
+            "is_primary": "Boolean (true/false)",
+            "display_order": "Integer"
+            }
+        ```
         Response:
+
             201 created     : url's are saved
+
+            Example:
+            ```Json
+            {
+            "image_url": "https://m.media-amazon.com/images/I/71d7rfSl0WL._SL1500_.jpg",
+            "alt_text": "iPhone 15 Pro Titanium Blue - Front View",
+            "video_url": "https://www.youtube.com/watch?v=xqyUdNxWn3w",
+            "is_primary": true,
+            "display_order": 1
+              } 
+            ```
             400 BAD REQUEST : validation error
         '''
-        serializer=serializers.ProductImageSerializers(data=request.data,context={"request":request})
+
+        product_id=self.request.data.get('product_id')
+       
+        user=self.request.user
+       
+
+        if not product_id:
+            return Response(
+                {"error":"product_id is required in the body"},
+                status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            product=models.Product.objects.get(id=product_id)
+     
+            if  product.seller.user!=user:
+                return Response(
+                    {'error':'you dont have permission to upload media files to this Product'},
+                    status=status.HTTP_403_FORBIDDEN)
+        except models.Product.DoesNotExist:
+            return Response({"error":"Prodcut does not exist"},status=status.HTTP_404_NOT_FOUND)
+        except Seller.DoesNotExist:
+            return Response({'error':'user does not registerd as a seller'},status=status.HTTP_404_NOT_FOUND)
+            
+
+        serializer=serializers.ProductImageSerializers(data=request.data,context={"request":request,"product_id":product_id})
+  
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data,status=status.HTTP_201_CREATED)
@@ -471,7 +536,7 @@ class AddressView(generics.GenericAPIView):
         -POST
         -PATCH
     '''
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated,IsBuyer]
 
     serializer_class = serializers.AddressSerializers
 
@@ -486,7 +551,26 @@ class AddressView(generics.GenericAPIView):
             Authenticated
 
         Response:
-            -200 ok : Address is returnred
+            -200 ok : Address is returnerd
+
+            Example:
+            ```Json
+            [
+                {
+                "user": "jaggu",
+                "address_type": "both",
+                "house_no": "Plot No. 42, Green Villas",
+                "street": "Madhapur Main Road",
+                "city": "Hyderabad",
+                "state": "Telangana",
+                "country": "India",
+                "postal_code": 500081,
+                "phone_number": "+919876543210",
+                "other_number": 1234567890
+                }
+            ]
+            
+            ```
         '''
         queryset=self.get_queryset()
         serializer=self.get_serializer(queryset,many=True)
@@ -496,10 +580,40 @@ class AddressView(generics.GenericAPIView):
         '''
         creates a new Address
 
-        request body:
+        Request Body:
+        ```Json
+            {
+                "address_type": "String ('shipping', 'billing', or 'both')",
+                "house_no": "String",
+                "street": "String",
+                "city": "String",
+                "state": "String",
+                "country": "String",
+                "postal_code": "Integer",
+                "phone_number": "String",
+                "other_number": "Integer (Optional)"
+            }
+        ```
 
         Response:
             -201 created: Address created
+            Example:
+            ```Json
+            [
+                {
+                "user": "jaggu",
+                "address_type": "both",
+                "house_no": "Plot No. 42, Green Villas",
+                "street": "Madhapur Main Road",
+                "city": "Hyderabad",
+                "state": "Telangana",
+                "country": "India",
+                "postal_code": 500081,
+                "phone_number": "+919876543210",
+                "other_number": 1234567890
+                }
+            ]  
+            ```
             -400 Bad request: validation error
 
         '''
@@ -513,6 +627,19 @@ class AddressView(generics.GenericAPIView):
         Updating the Address
 
         request body:
+        ```Json
+            {
+                "address_type": "String ('shipping', 'billing', or 'both')",
+                "house_no": "String",
+                "street": "String",
+                "city": "String",
+                "state": "String",
+                "country": "String",
+                "postal_code": "Integer",
+                "phone_number": "String",
+                "other_number": "Integer (Optional)"
+            }
+        ```
 
         Response:
             -200 ok: Address updated
@@ -533,18 +660,38 @@ class CategoryListCreateview(generics.ListCreateAPIView):
     '''
     Category API
 
-    Lists and creates all Product categories
+    Lists and creates all Product categories 
 
     Access:
         PublicReadOnly
+        AdminPrevilages
 
     Method:
         GET  - returns Product categories
         POST - creates a New Product Category
 
     request body:
+    ```Json
+    {
+        "name": "String (Unique)",
+        "parent": "Integer (Parent Category ID or null)",
+        "origin": "String (Optional)",
+        "description": "String (Optional)"
+    }
+    ```
     
+    Example:
+    ```Json
+    {
+        "name": "Electronics",
+        "parent": null,
+        "origin": "Global",
+        "description": "Gadgets, appliances, and tech accessories."
+    }  
+    ```
     '''
+
+    permission_classes=[IsAdminOrReadonly]
     queryset = models.Category.objects.all()
     serializer_class = serializers.CategorySerializers
 category_view=CategoryListCreateview.as_view()

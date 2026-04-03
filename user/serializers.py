@@ -23,7 +23,23 @@ class ProductImageSerializers(serializers.ModelSerializer):
         model = models.ProductImage
         fields = ['image_url', 'alt_text', 'video_url', 
                   'is_primary', 'display_order']
-    
+
+    def create(self,validated_data):
+            product_id=self.context.get('product_id')
+            print(product_id,'j')
+
+            if not product_id :
+                raise serializers.ValidationError({"error":"product Id is required to create ProductImage"})
+            
+            try:
+                product=models.Product.objects.get(id=product_id)
+            except models.Product.DoesNotExist:
+                raise serializers.ValidationError({"error":"Product does not exist with this id"})
+           
+            validated_data['product']=product
+
+            return super().create(validated_data)
+        
 
 class ReviewSerializers(serializers.ModelSerializer):
 

@@ -6,7 +6,7 @@ class IsSeller(BasePermission):
     '''
 
     def has_permission(self,request,view):
-        return request.user.is_authenticated and request.user.is_seller
+        return request.user.is_authenticated and request.user.role_model=='seller'
     
 class IsBuyer(BasePermission):
     '''
@@ -14,7 +14,7 @@ class IsBuyer(BasePermission):
     '''
 
     def has_permission(self, request, view):
-        return  request.user.is_authenticated and request.user.is_buyer
+        return  request.user.is_authenticated and request.user.role_model=="buyer"
     
 class IsSellerOrReadOnly(BasePermission):
     '''
@@ -25,7 +25,7 @@ class IsSellerOrReadOnly(BasePermission):
 
         if request.method in ('GET','HEAD','OPTIONS'):
             return request.user.is_authenticated
-        return request.user.is_authenticated and request.user.is_seller
+        return request.user.is_authenticated and request.user.role_model=='seller'
     
 
 class IsProductOwner(BasePermission):
@@ -36,4 +36,11 @@ class IsProductOwner(BasePermission):
     def has_object_permission(self, request, view, obj):
         print(obj.seller.user,request.user)
         return obj.seller.user==request.user
+    
+class IsAdminOrReadonly(BasePermission):
+    def has_permission(self, request, view):
+        if request.user.is_staff:
+           return True
+        if request.method in ('GET','OPTIONS','HEAD'):
+            return True
 
