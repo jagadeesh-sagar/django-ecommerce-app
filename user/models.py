@@ -165,7 +165,7 @@ class CartItem(models.Model):
         unique_together = ['cart', 'product_variant']
     
     def __str__(self):
-        return f"{self.quantity} x {self.product_variant}"
+        return f"?product={self.product.id}&variant={self.product_variant.id}"
 
 
 class Whishlist(models.Model):

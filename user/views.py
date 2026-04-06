@@ -709,8 +709,10 @@ class SellerAnswers(APIView):
         -POST
 
     '''
-   
+    permission_classes=[IsAuthenticated]
+
     def get_queryset(self):
+        
         try:
             # finds seller and all his Products QnA
             seller=Seller.objects.get(user=self.request.user)
@@ -726,6 +728,15 @@ class SellerAnswers(APIView):
 
         Response:
             200 OK : Returned Seller Answer
+            Example:
+            ```Json
+            {
+                "id": 1,
+                "answer": null,
+                "product": 1,
+                "question": "is battery have a warrant"
+            }       
+            ```
         '''
         pk=kwargs['pk']
         #returns the Qna object if Exists 
@@ -742,8 +753,16 @@ class SellerAnswers(APIView):
             400 BAD REQUEST: validation Error
         
         request body:
-       
-        :param kwargs: Description
+        Example:
+        ```json
+        {
+        "id": 1,
+        "answer": "haa it have 2 years warrant",
+        "product": 1,
+        "question": "is battery have a warrant"
+        }        
+        ```
+        :param kwargs: question id
         '''
         pk=kwargs['pk']
         question=get_object_or_404(self.get_queryset(),id=pk)
@@ -762,9 +781,23 @@ class CustomerQuestion(generics.CreateAPIView):
 
     Method:
         post-saves the customer question
+    Request-Body:
+    ```json
+        {
+        "question": "String (The text of the customer's question)"
+        }
+    ```
 
     Response:
         201 created:customer question posted
+        Example:
+        ```Json
+        {
+        "id": "25",
+        "question": "Does this monitor support HDMI 2.1 for 120Hz gaming?",
+        "endpoint": "http://127.0.0.1:8000/api/user/product/qna/"
+        }  
+        ```
     '''
     queryset=models.QnA.objects.all()
     serializer_class=serializers.CustomerQuestionSerializers
@@ -800,6 +833,26 @@ class CartItem(APIView):
 
         Response :
             200 OK : successfully returns the cart items  
+            ```json
+
+        [
+            {
+                "cart": "Integer (Cart ID)",
+                "product": {
+                    "id": "Integer",
+                    "product_name": "String",
+                    "category_name": "String",
+                    "brand_name": "String",
+                    "seller_name": "String",
+                    "images": ["Array of Image Objects"],
+                    "variants": ["Array of Variant Objects"],
+                    "reviews": ["Array of Review Objects"]
+                },
+                "product_variant": "Integer (Variant ID or null)",
+                "quantity": "Integer"
+            }
+        ]                
+            ```
         '''
         # retrives cart if Exists else creates a New one
         cart=models.Cart.objects.get_or_create(user=self.request.user)
@@ -812,6 +865,13 @@ class CartItem(APIView):
         Adds Cart item to the cart
 
         Request body:
+        ```json
+        {
+            "product": "Integer (Product ID)",
+            "product_varaint": "Integer (Variant ID - Optional)",
+            "quantity": "Integer"
+        }
+        ```
 
         QueryParameters:
            product         : Product ID 
@@ -819,12 +879,13 @@ class CartItem(APIView):
 
         Responses:
             200 ok : Cart item is added
+
             400 Bad request : validation error
       
         '''
-        product_id=self.request.get('product')
-        variant_id=self.request.get('product_variant')
-        quantity=int(self.request.get('quantity',1))
+        product_id=self.request.data.get('product')
+        variant_id=self.request.data.get('product_variant')
+        quantity=int(self.request.data.get('quantity',1))
 
         if not product_id:
             return Response({"error":"product is required"},status=400)
@@ -837,7 +898,7 @@ class CartItem(APIView):
         
         try:
             # if cart item already exists update it
-            cart_item=models.CartItem.objects.filter(
+            cart_item=models.CartItem.objects.get(
                 cart=cart,
                 product_id=product_id,
                 product_variant_id=variant_id if variant_id else None
@@ -875,9 +936,9 @@ class CartItem(APIView):
                 if serializer.is_valid():
                     serializer.save()
 
-                return Response(
-                {"message": "Item added", "item":serializer.data},
-                status=status.HTTP_201_CREATED)
+                    return Response(
+                    {"message": "Item added", "item":serializer.data},
+                    status=status.HTTP_201_CREATED)
             
         return Response(serializer.error_messages,status=status.HTTP_400_BAD_REQUEST)
     
@@ -897,9 +958,9 @@ class CartItem(APIView):
   
         '''
 
-        product_id=self.request.get('product')
-        variant_id=self.request.get('product_variant')
-        quantity=self.request.get('quantity')
+        product_id=self.request.data.get('product')
+        variant_id=self.request.data.get('product_variant')
+        quantity=int(self.request.data.get('quantity',1))
 
         if not product_id:
             return Response({"error":"product is required"},status=400)

@@ -198,6 +198,7 @@ class ProductDetailSerializers(serializers.ModelSerializer):
         return f'{url}?q={obj.id}'
 
 
+
 class ProductCreateSerializers(serializers.ModelSerializer):
 
     product_name=serializers.CharField(source="name")
@@ -318,24 +319,36 @@ class ProductCartSerializers(serializers.ModelSerializer):
                 'images','variants','reviews']
 
     def get_seller_name(self, obj):
+       print(obj.id)
        return obj.seller.user.username
     
 
 class CartItemRetrieveSerializers(serializers.ModelSerializer):
 
     product=ProductCartSerializers(read_only=True)
+    cartitem=serializers.SerializerMethodField()
+    # product_variant=ProductVariantSerializers(many=True,read_only=True)
     class Meta:
         model=models.CartItem
-        fields=['cart','product','product_variant','quantity']
+        fields=['cart','product','product_variant','quantity','cartitem']
+
+    def get_cartitem(self,obj):
+        request=self.context.get('request')
+        if request is None:
+            return None
+        url=reverse(f'cart-item',request=request)
+        return f'{url}{obj}'
+
+
 
 
 class CartItemCreateSerializers(serializers.ModelSerializer):
 
-    product=serializers.PrimaryKeyRelatedField(
+    product=serializers.PrimaryKeyRelatedField( 
         queryset=models.Product.objects.all()
     )
 
-    product_varaint=serializers.PrimaryKeyRelatedField(
+    product_variant=serializers.PrimaryKeyRelatedField(
         queryset=models.ProductVariant.objects.all(),
         required=False,
         allow_null=True
@@ -343,14 +356,14 @@ class CartItemCreateSerializers(serializers.ModelSerializer):
 
     class Meta:
         model = models.CartItem
-        fields = ['product','product_varaint','quantity']
+        fields = ['product','product_variant','quantity']
 
     def validate(self, attrs):
         
-        prodcut=attrs.get('product')
-        variant=attrs.get('product_varaint')
+        product=attrs.get('product_id')
+        variant=attrs.get('variant_id')
 
-        if variant and variant.Product != prodcut:
+        if variant and variant.product != product:
             raise serializers.ValidationError(
                 "Selected variant does not belong to this product")
         
@@ -360,12 +373,12 @@ class CartItemCreateSerializers(serializers.ModelSerializer):
                 f"Only {variant.stock_qty} items available"
                 )
             else :
-                if prodcut.stock_qty > attrs['quantity']:
+                if product.stock_qty > attrs['quantity']:
                     raise serializers.ValidationError(
-                    f"Only {prodcut.stock_qty} items available"
+                    f"Only {product.stock_qty} items available"
                     )
 
-        return super().validate(attrs)
+        return attrs
 
     def create(self, validated_data):
     
