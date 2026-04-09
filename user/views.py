@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404
 import boto3
 from django.conf import settings
 
+from api.authentication import CookieJWTAuthentication
 
 class ProductsListAPIView(APIView):
     '''
@@ -222,7 +223,9 @@ class ProductDetailView(mixins.RetrieveModelMixin,generics.GenericAPIView):
      - List details of a Product
 
     '''
+    # authentication_classes = [CookieJWTAuthentication] 
     permission_classes=[AllowAny]
+
     queryset=models.Product.objects.all()
     serializer_class=serializers.ProductDetailSerializers
     lookup_field='pk'
@@ -296,7 +299,11 @@ class ProductDetailView(mixins.RetrieveModelMixin,generics.GenericAPIView):
         }
             ```
         '''
+        
+        print("AUTH CLASS:",self.request.successful_authenticator)
+        print("COOKIES:",self.request.COOKIES)
         return self.retrieve(request,*args,**kwargs)
+    
     
 product_detail=ProductDetailView.as_view()
 
@@ -324,6 +331,7 @@ class ProductSearch(APIView):
 
      '''
      queryset=models.Product.objects.all()
+     permission_classes=[AllowAny]
 
      def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -400,7 +408,7 @@ class ProductImageListview(APIView):
         4.save urls of media (after successful upload from front-end)
 
     '''
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsProductOwner]
 
     queryset = models.ProductImage.objects.all()
     s3_client=boto3.client("s3",
@@ -709,7 +717,7 @@ class SellerAnswers(APIView):
         -POST
 
     '''
-    permission_classes=[IsAuthenticated]
+    permission_classes=[IsSeller,IsProductOwner]
 
     def get_queryset(self):
         
@@ -801,6 +809,7 @@ class CustomerQuestion(generics.CreateAPIView):
     '''
     queryset=models.QnA.objects.all()
     serializer_class=serializers.CustomerQuestionSerializers
+    permission_classes=[IsBuyer]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -820,7 +829,7 @@ class CartItem(APIView):
         - Update the quantity
     '''
 
-    permission_classes=[IsAuthenticated]
+    permission_classes=[IsBuyer]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -1073,7 +1082,7 @@ class ReviewView(APIView):
         - Delete the Review   
     '''
 
-    permission_classes=[IsAuthenticated]
+    permission_classes=[IsBuyer]
 
     queryset=models.Review.objects.all()
 
@@ -1183,6 +1192,7 @@ class BrandListCreateview(generics.ListCreateAPIView):
         GET
  
     '''
+    permission_classes=[IsSeller]
     queryset=models.Brand.objects.all()
     serializer_class=serializers.BrandSerializer
 
@@ -1197,7 +1207,7 @@ class WhishView(APIView):
         - Get Products from Whishlist
     '''
     queryset=models.Whishlist.objects.all()
-    permission_classes=[IsAuthenticated]
+    permission_classes=[IsBuyer]
 
     def get(self,request):
         '''
@@ -1275,6 +1285,7 @@ class OrderView(APIView):
         - Order Products 
         - View Orders
     '''
+    permission_classes=[IsBuyer]
 
     def post(self,request):
          '''
@@ -1309,10 +1320,10 @@ order_list_create_view=OrderView.as_view()
 
 
 class PaymentVIew(generics.ListCreateAPIView):
+    permission_classes=[IsBuyer]
     queryset=models.Payment.objects.all()
     serializer_class=serializers.PaymentSerializers
 
 payment_list_create_view=PaymentVIew.as_view()
 
     
-

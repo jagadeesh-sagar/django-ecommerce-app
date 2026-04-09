@@ -202,20 +202,22 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK={
   'DEFAULT_AUTHENTICATION_CLASSES':[
-      'rest_framework.authentication.SessionAuthentication',
-        #   "rest_framework_simplejwt.authentication.JWTAuthentication", # it reads token from  'Authorization: Bearer <token>' but we are using cookies
-      'api.authentication.CookieJWTAuthentication'  # so we built custom auth
+      'api.authentication.CookieJWTAuthentication',  # so we built custom auth
+          "rest_framework_simplejwt.authentication.JWTAuthentication", # it reads token from  'Authorization: Bearer <token>' but we are using cookies
+                    'rest_framework.authentication.SessionAuthentication',
+
   ],
     "DEFAULT_PERMISSION_CLASSES":[
                    "rest_framework.permissions.IsAuthenticatedOrReadOnly"
   ],
+    'COERCE_DECIMAL_TO_STRING': False,   # if we want decimal values to be string Make it "True"  decimal on frontend caues rounding errors so string is better(True)
   
 }
 
 SIMPLE_JWT={
   'AUTH_HEADER_TYPES':["Bearer"],
-  "ACCESS_TOKEN_LIFETIME":datetime.timedelta(minutes=15) ,
-  "REFRESH_TOKEN_LIFETIME":datetime.timedelta(minutes=45)
+  "ACCESS_TOKEN_LIFETIME":datetime.timedelta(minutes=45) ,
+  "REFRESH_TOKEN_LIFETIME":datetime.timedelta(days=15)
 
 
 }
@@ -232,8 +234,18 @@ DJANGO_MCP_GLOBAL_SERVER_CONFIG = {
 }
 
 # settings.py
-REST_FRAMEWORK = {  # if we want decimal values to be string Make it "True"  decimal on frontend caues rounding errors so string is better(True)
-    'COERCE_DECIMAL_TO_STRING': False,
-}
+# REST_FRAMEWORK = {  # if we want decimal values to be string Make it "True"  decimal on frontend caues rounding errors so string is better(True)
+#     'COERCE_DECIMAL_TO_STRING': False,
+# }
 
 AUTH_USER_MODEL = 'api.User'
+
+CORS_ALLOW_CREDENTIALS = True
+
+
+SESSION_COOKIE_SAMESITE = 'Lax'       # 'None' only if cross-site + HTTPS
+SESSION_COOKIE_SECURE   = False        # True in production (HTTPS only)
+
+CSRF_COOKIE_SAMESITE    = 'Lax'
+CSRF_COOKIE_SECURE      = False
+CSRF_COOKIE_HTTPONLY    = False    
