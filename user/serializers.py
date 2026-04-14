@@ -19,6 +19,8 @@ class CategorySerializers(serializers.ModelSerializer):
 
 
 class ProductImageSerializers(serializers.ModelSerializer):
+    image_url = serializers.URLField(required=False, allow_blank=True, default='')
+
     class Meta:
         model = models.ProductImage
         fields = ['image_url', 'alt_text', 'video_url', 
@@ -26,7 +28,6 @@ class ProductImageSerializers(serializers.ModelSerializer):
 
     def create(self,validated_data):
             product_id=self.context.get('product_id')
-            print(product_id,'j')
 
             if not product_id :
                 raise serializers.ValidationError({"error":"product Id is required to create ProductImage"})
@@ -85,20 +86,11 @@ class ProductVariantSerializers(serializers.ModelSerializer):
 
 class CustomerQuestionSerializers(serializers.ModelSerializer):
   
-    endpoint=serializers.SerializerMethodField()
     id=serializers.CharField(read_only=True)
   
     class Meta:
         model=models.QnA
-        fields=["id",'question','endpoint']
-    
-    def get_endpoint(self,obj):
-        request=self.context.get('request')
-        if request is None:
-            return None
-      
-        url=reverse('qna',request=request)
-        return url
+        fields=["id",'question']
 
     def create(self, validated_data):
         product=self.context.get('id')
@@ -109,21 +101,14 @@ class CustomerQuestionSerializers(serializers.ModelSerializer):
 
 class QnA(serializers.ModelSerializer):
 
-    endpoint=serializers.SerializerMethodField()
+    endpoint=serializers.HyperlinkedIdentityField(view_name='qna-ans',lookup_field='pk')
     product=serializers.CharField(write_only=True)
     id=serializers.CharField(write_only=True)
 
     class Meta:
         model=models.QnA
         fields=['id','question','answer','product','endpoint']
-
-    def get_endpoint(self,obj):
-        request=self.context.get('request')
-        if request is None:
-            return None
-        url=reverse('qna-ans',kwargs={"pk":obj.id},request=request)
-        return url
-
+        
     def create(self, validated_data):
         validated_data['user']=self.context['request'].user
         return super().create(validated_data)
@@ -133,11 +118,15 @@ class ProductSearchSerializers(serializers.ModelSerializer):
 
     product_name=serializers.CharField(source="name")
     category_name=serializers.CharField(source='category.name',read_only=True)
-    category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
-    brand_name=  serializers.CharField(source='brand.name',read_only=True)
-    brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)
-    seller_name=serializers.SerializerMethodField(read_only=True)
+    brand_name= serializers.CharField(source='brand.name',read_only=True)
+    seller_name=serializers.CharField(source='seller.user.username',read_only=True)
     variants=ProductVariantSerializers(many=True,read_only=True)
+
+
+    category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
+
+    brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)
+
     seller=serializers.PrimaryKeyRelatedField(queryset=Seller.objects.all(),write_only=True)
 
     class Meta:
@@ -146,6 +135,7 @@ class ProductSearchSerializers(serializers.ModelSerializer):
                 'base_price','category','brand_name','variants','brand']
 
     def get_seller_name(self, obj):
+       obj.seller.user.username
        return obj.seller.user.username
     
 
@@ -153,15 +143,18 @@ class ProductDetailSerializers(serializers.ModelSerializer):
 
     product_name=serializers.CharField(source="name")
     category_name=serializers.CharField(source='category.name',read_only=True)
-    category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
     brand_name=  serializers.CharField(source='brand.name',read_only=True)
+    seller_name=serializers.CharField(source='seller.user.username',read_only=True)
+
+    category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
     brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)
-    seller_name=serializers.SerializerMethodField(read_only=True)
+    seller=serializers.PrimaryKeyRelatedField(queryset=Seller.objects.all(),write_only=True)
+
     images=ProductImageSerializers(many=True,read_only=True)
     variants=ProductVariantSerializers(many=True,read_only=True)
     reviews=ReviewSerializers(many=True,read_only=True)
+
     new_review=serializers.SerializerMethodField()
-    seller=serializers.PrimaryKeyRelatedField(queryset=Seller.objects.all(),write_only=True)
     new_question=serializers.SerializerMethodField()
     questions=QnA(many=True)
     whishlist=serializers.SerializerMethodField()
@@ -173,29 +166,21 @@ class ProductDetailSerializers(serializers.ModelSerializer):
             'brand','stock_qty','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist'
             ]
 
-    def get_seller_name(self, obj):
-       return obj.seller.user.username
+    def _get_action_url(self, view_name,obj):
+        request=self.context.get('request')
+        if request is None:
+            return None
+        url=reverse(f'{view_name}',request=request)
+        return f'{url}?q={obj.id}'    
     
     def get_new_question(self,obj):
-        request=self.context.get('request')
-        if request is None:
-            return None
-        url=reverse('qna',request=request)
-        return f'{url}?q={obj.id}'
-    
+        return self._get_action_url('qna',obj)
+     
     def get_new_review(self,obj):
-        request=self.context.get('request')
-        if request is None:
-            return None
-        url=reverse(f'product-review',request=request)
-        return f'{url}?q={obj.id}'
+        return self._get_action_url('product-review',obj)
     
     def get_whishlist(self,obj):
-        request=self.context.get('request')
-        if request is None:
-            return None
-        url=reverse(f'whishlist',request=request)
-        return f'{url}?q={obj.id}'
+       return self._get_action_url('whishlist',obj)
 
 
 
@@ -204,7 +189,6 @@ class ProductCreateSerializers(serializers.ModelSerializer):
     product_name=serializers.CharField(source="name")
     category_name=serializers.CharField(source='category.name',read_only=True)
     brand_name=  serializers.CharField(source='brand.name',read_only=True)
-    # images=ProductImageSerializers(many=True)
     variants=ProductVariantSerializers(many=True,required=False)
 
     category = serializers.SlugRelatedField(
@@ -224,30 +208,35 @@ class ProductCreateSerializers(serializers.ModelSerializer):
         read_only_fields=['id']
 
     def create(self, validated_data):
-        # image_data=validated_data.pop('images',[])
         variant_data=validated_data.pop('variants',[])
 
         if variant_data:
             variant_stock=sum(v.get('stock_qty') for v in variant_data)
-            validated_data['stock_qty']=variant_stock
+            validated_data['stock_qty']=validated_data.get('stock_qty')+variant_stock
+        else:
+            validated_data.setdefault('stock_qty',0)
 
-        elif "stock_qty" not in validated_data:
-            validated_data['stock_qty']=0
-
-        user = self.context['request'].user
-        seller=Seller.objects.get(user=user)
-        validated_data['seller'] = seller
-
-        product=models.Product.objects.create(**validated_data)
-
-        # for image in image_data:
-        #     models.ProductImage.objects.create(product=product,**image)
+        try:
+            user = self.context['request'].user
+            seller=Seller.objects.get(user=user)
+            validated_data['seller'] = seller
+        except Seller.DoesNotExist:
+            raise serializers.ValidationError({'error':"user is not registrated as a seller"})
         
-        for variant in variant_data:
-            models.ProductVariant.objects.create(product=product,**variant)
 
+        with transaction.atomic():
+            
+            product=models.Product.objects.create(**validated_data)
+            varinats_items=[]
+
+            if variant_data:
+                varinats_items=[
+                    models.ProductVariant(product=product  ,**variant)
+                    for variant in variant_data
+                ]
+                models.ProductVariant.objects.bulk_create(varinats_items)
         return product
-        
+            
     
 class ProductSerializer(serializers.ModelSerializer):
 
@@ -256,20 +245,23 @@ class ProductSerializer(serializers.ModelSerializer):
     category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
     brand_name=  serializers.CharField(source='brand.name',read_only=True)
     brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)    
-    product_detail=serializers.SerializerMethodField()
-
+    # product_detail=serializers.SerializerMethodField()    This runs a Python function for every object Even though it's small, in large lists → performance hit
+    product_detail = serializers.HyperlinkedIdentityField(
+    view_name='product-detail',
+    lookup_field='pk'
+)
 
     class Meta:
         model=models.Product
         fields=['product_name','description','category_name','base_price',
                 'category','brand_name','brand','product_detail']
         
-    def get_product_detail(self,obj):
-        request=self.context.get('request')
-        if request is None:
-            return None
-        url=reverse(f'product-detail',kwargs={"pk":obj.id},request=request)
-        return f'{url}'
+    # def get_product_detail(self,obj):
+    #     request=self.context.get('request')
+    #     if request is None:
+    #         return None
+    #     url=reverse(f'product-detail',kwargs={"pk":obj.id},request=request)
+    #     return f'{url}'
 
 
 class AddressSerializers(serializers.ModelSerializer):
@@ -278,9 +270,28 @@ class AddressSerializers(serializers.ModelSerializer):
     class Meta:
         model=models.Address
         fields=['user','address_type','house_no','street','city','state','country',
-                'postal_code','phone_number','other_number']
+                'postal_code','phone_number','other_number','is_default']
+        
+    def update(self, instance, validated_data):
+        is_default=validated_data.get('is_default')
+        
+        if is_default:
+            models.Address.objects.filter(
+                user=instance.user,
+                is_default=True
+                ).exclude(id=instance.id).update(is_default=False)
+
+        return super().update(instance, validated_data)
 
     def create(self, validated_data):
+        user=self.context['request'].user
+        is_default=validated_data.get('is_default')
+
+        if is_default:
+            models.Address.objects.filter(
+                user=user,
+                is_default=True
+                ).update(is_default=False)
         validated_data['user']=self.context['request'].user
         return super().create(validated_data)
     
@@ -319,7 +330,7 @@ class ProductCartSerializers(serializers.ModelSerializer):
                 'images','variants','reviews']
 
     def get_seller_name(self, obj):
-       print(obj.id)
+
        return obj.seller.user.username
     
 
@@ -327,7 +338,7 @@ class CartItemRetrieveSerializers(serializers.ModelSerializer):
 
     product=ProductCartSerializers(read_only=True)
     cartitem=serializers.SerializerMethodField()
-    # product_variant=ProductVariantSerializers(many=True,read_only=True)
+    product_variant=ProductVariantSerializers(many=True,read_only=True)
     class Meta:
         model=models.CartItem
         fields=['cart','product','product_variant','quantity','cartitem']
@@ -444,46 +455,69 @@ class OrderSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self,validated_data):
-            order_item=validated_data.pop('items')
-            import uuid
-            order_number = f"ORD-{uuid.uuid4().hex[:10].upper()}"
-            validated_data['order_number']=order_number
+            order_items=validated_data.pop('items')
 
-            subtotal=0
-            if order_item:
-                product=order_item['product']
-                variant=order_item.get('product_variant')
-                quantity=order_item['quantity']
-                total_price=0
+            if not order_items:
+                 raise serializers.ValidationError("Order must contain at least one item")
+
+            subtotal=Decimal('0')
+            order_item_objects=[]
+
+            for item in order_items:
+
+                product = models.Product.objects.select_for_update().get(id=item['product'].id)  # to prevent race condition in db
+
+                variant=item.get('product_variant')
+                quantity=item['quantity']
+
+                if product.stock < quantity:
+                  raise serializers.ValidationError("Out of stock")
 
                 unit_price=variant.price if variant else product.base_price
-                order_item['unit_price']=unit_price
                 total_price=quantity*unit_price
+
                 subtotal+=total_price
 
-            validated_data['subtotal']=subtotal
-            validated_data['tax_amount']=subtotal* Decimal(0.18)
-            validated_data['total_amount']=subtotal+validated_data['tax_amount']
-            validated_data['user']=self.context['request'].user
+                product.stock -= quantity
+                product.save()
 
-        
-            validated_data['discount_amount']=Decimal('0')
-            if 'coupon' in validated_data and validated_data['coupon']:
-        
-              validated_data['discount_amount'] = subtotal * Decimal('0.10')
-        
-            order=models.Order.objects.create(
+                order_item_objects.append(
+                    models.OrderItem(
+                        order=order,
+                        product=product,
+                        product_variant=variant,
+                        quantity=quantity,
+                        unit_price=unit_price,
+                        total_price=total_price
+                    )
+                )
+
+            import uuid
+            order_number = f"ORD-{uuid.uuid4().hex[:10].upper()}"
+
+            tax_amount = subtotal * Decimal('0.18')
+            discount_amount = Decimal('0')
+
+            if validated_data.get('coupon'):
+                discount_amount = subtotal * Decimal('0.10')
+
+            order = models.Order.objects.create(
+                user=self.context['request'].user,
+                order_number=order_number,
+                subtotal=subtotal,
+                tax_amount=tax_amount,
+                discount_amount=discount_amount,
+                total_amount=subtotal + tax_amount - discount_amount,
                 **validated_data
             )
-            
-            models.OrderItem.objects.create(order=order,
-            product=product,
-            product_variant=variant,
-            quantity=quantity,
-            unit_price=unit_price,
-            total_price=total_price)
+
+            for obj in order_item_objects:
+                obj.order = order
+
+            models.OrderItem.objects.bulk_create(order_item_objects)
 
             return order
+
 
 class OrderReadSerializers(serializers.ModelSerializer):
 

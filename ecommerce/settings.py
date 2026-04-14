@@ -211,6 +211,7 @@ REST_FRAMEWORK={
                    "rest_framework.permissions.IsAuthenticatedOrReadOnly"
   ],
     'COERCE_DECIMAL_TO_STRING': False,   # if we want decimal values to be string Make it "True"  decimal on frontend caues rounding errors so string is better(True)
+  "DEFAULT_PAGINATION_CLASS":"rest_framework.pagination.PageNumberPagination","PAGE_SIZE":2 
   
 }
 

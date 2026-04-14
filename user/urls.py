@@ -1,21 +1,21 @@
-from . import views
+from . import views,cart_views,order_views,payment_views,product_views,seller_views
 from django.urls import path,include
 
 urlpatterns=[
     
-    path('products/',views.product_view,name='product-list'),
-    path('product/create/',views.product_create,name='product-create'),
-    path('product/detail/<int:pk>',views.product_detail,name='product-detail'),
-    path('product/search/',views.product_search_view,name='product-search'),
-    path('product/image/',views.productImage_retrieve_view,name='product-image'),
+    path('products/',product_views.product_list_view,name='product-list'),
+    path('product/create/',product_views.product_create_view,name='product-create'),
+    path('product/detail/<int:pk>',product_views.product_detail_view,name='product-detail'),
+    path('product/search/',product_views.product_search_view,name='product-search'),
+    path('product/image/',product_views.productImage_retrieve_view,name='product-image'),
     path('product/categories/',views.category_view,name='category-create'),
     path('product/detail/review/',views.review_list_view,name='product-review'),
-    path('product/seller-ans/<int:pk>',views.seller_ans,name='qna-ans'),
-    path('product/customer-qxn/',views.customer_qxns,name='qna'),
-    path('address/',views.address_create,name='address-create'),
-    path('cart/',views.cartitem,name='cart-item'),
+    path('product/seller-ans/<int:pk>',seller_views.seller_ans_view,name='qna-ans'),
+    path('product/customer-qxn/',views.customer_qxns_view,name='qna'),
+    path('address/',views.address_create_view,name='address-create'),
+    path('cart/',cart_views.cartitem_view,name='cart-item'),
     path('brand/',views.brand_list_create_view,name='brands'),
-    path('whishlist/',views.whish_list_createview,name='whishlist'),
-    path('order/',views.order_list_create_view,name='order'),
-    path('payment/',views.payment_list_create_view,name='payment'),
+    path('whishlist/',cart_views.wishlist_view,name='whishlist'),
+    path('order/',order_views.order_list_create_view,name='order'),
+    path('payment/',payment_views.payment_list_create_view,name='payment'),
 ]

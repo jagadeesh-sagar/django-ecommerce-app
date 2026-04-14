@@ -102,9 +102,9 @@ class ProductVariant(models.Model):
 
 class ProductImage(models.Model):
     product=models.ForeignKey(Product,on_delete=models.CASCADE,related_name='images')
-    image_url=models.URLField(max_length=200)
-    alt_text = models.CharField(max_length=200, null=True, blank=True)
-    video_url=models.URLField(max_length=200,null=True,blank=True)
+    image_url=models.URLField(max_length=500,blank=True,default='')
+    alt_text = models.CharField(max_length=500, null=True, blank=True)
+    video_url=models.URLField(max_length=500,null=True,blank=True)
     is_primary = models.BooleanField(default=False)
     display_order = models.IntegerField(default=0)
 
@@ -165,7 +165,9 @@ class CartItem(models.Model):
         unique_together = ['cart', 'product_variant']
     
     def __str__(self):
-        return f"?product={self.product.id}&variant={self.product_variant.id}"
+        variant=self.product_variant.id if self.product_variant else None
+           
+        return f"?product={self.product.id}&variant={variant}"
 
 
 class Whishlist(models.Model):
