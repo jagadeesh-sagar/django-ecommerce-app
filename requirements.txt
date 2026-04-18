@@ -5,3 +5,6 @@ gunicorn
 djangorestframework-simplejwt
 boto3
 psycopg2-binary==2.9.9
+channels==4.0.0
+channels-redis==4.2.0
+daphne==4.0.0

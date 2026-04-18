@@ -15,8 +15,6 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 
 
-
-
 class OrderView(APIView):
 
     '''
@@ -153,7 +151,8 @@ class OrderView(APIView):
         queryset=models.Order.objects \
             .filter(user=self.request.user) \
             .select_related('shipping_address','billing_address')\
-            .prefetch_related('items','items__product,items__product_variant')
+            .prefetch_related('items','items__product','items__product_variant')
+        print(queryset.query)
 
         paginator=StandardPagination()
         result_page=paginator.paginate_queryset(queryset,request)

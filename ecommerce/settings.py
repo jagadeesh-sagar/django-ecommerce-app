@@ -55,6 +55,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://13.234.124.118",  # Add your backend server
     "http://13.233.78.207",   # Add your other backend server
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 # Add this to allow all methods
@@ -82,6 +84,9 @@ CORS_ALLOW_HEADERS = [
 ]
 
 INSTALLED_APPS = [
+    "daphne",      
+    "channels",
+    "chat",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -127,7 +132,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'ecommerce.wsgi.application'
+# WSGI_APPLICATION = 'ecommerce.wsgi.application'
+ASGI_APPLICATION = "ecommerce.asgi.application"
 
 
 # Database
@@ -250,3 +256,12 @@ SESSION_COOKIE_SECURE   = False        # True in production (HTTPS only)
 CSRF_COOKIE_SAMESITE    = 'Lax'
 CSRF_COOKIE_SECURE      = False
 CSRF_COOKIE_HTTPONLY    = False    
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}

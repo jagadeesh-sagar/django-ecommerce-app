@@ -1,4 +1,5 @@
 from rest_framework.permissions import BasePermission
+from .models import Order,OrderItem
 
 class IsSeller(BasePermission):
     '''
@@ -34,8 +35,8 @@ class IsProductOwner(BasePermission):
     '''
 
     def has_object_permission(self, request, view, obj):
-        print(obj.seller.user,request.user)
-        return obj.seller.user==request.user
+        print(obj)
+        return request.user.is_authenticated and obj.product.seller.user==request.user
     
 class IsAdminOrReadonly(BasePermission):
     def has_permission(self, request, view):
@@ -44,3 +45,29 @@ class IsAdminOrReadonly(BasePermission):
         if request.method in ('GET','OPTIONS','HEAD'):
             return True
 
+
+class IsOrderParticipant(BasePermission):
+    """
+    Only buyer or seller of the order can access
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        order_id = view.kwargs.get("order_id")
+
+        order = Order.objects.filter(id=order_id).first()
+        if not order:
+            return False
+
+        # buyer
+        if request.user.id == order.user_id:
+            return True
+
+        # seller (any item in order)
+        return OrderItem.objects.filter(
+            order_id=order_id,
+            product__seller_id=request.user.id
+        ).exists()
+    
