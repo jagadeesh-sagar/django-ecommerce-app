@@ -223,7 +223,7 @@ class ProductSearch(APIView):
         name=self.request.GET.get('n',None)
         brand=self.request.GET.get('b',None)
         price=request.query_params.get('price')
-        print(price)
+       
        
         queryset=self.get_queryset()
 
@@ -324,7 +324,6 @@ class ProductImageListview(APIView):
         )
         # its url that gets generated after successful upload from front-end
         url=f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{user}/{product_id}/{file_type}/{file_name}'
-        print(url)
         
         return Response({'upload_url':presigned_urls,'file_url':url,
                          'bucket':settings.AWS_STORAGE_BUCKET_NAME,'key':f'{user}/{product_id}/{file_type}/{file_name}'},
@@ -537,3 +536,64 @@ class ProductCreateGenericView(APIView):
             
 
 product_create_view=ProductCreateGenericView.as_view()
+
+class ProductDeleteView(APIView):
+    '''
+    delete a product 
+
+    Allows seller of the product to delete (ProductOwner)
+    
+    '''
+    permission_classes=[IsSeller,IsProductOwner]
+
+    def delete(self,request,*args,**kwargs):
+        '''
+        QueryParameters:
+            product         : Product ID
+            product_variant : Product Varaint ID
+
+        Responses:
+            200 ok : Product is deleted
+            404 Not Found : Product or Product Variant is not Found
+        
+        '''
+
+        product_id=kwargs.get('product')
+        variant_id=kwargs.get('variant')
+
+     
+        if not product_id :
+            return Response({"error":"Product Id is required"},status=status.HTTP_400_BAD_REQUEST)
+        
+        try:               
+            product=models.Product.objects.get(id=product_id)
+            self.check_object_permissions(request,product)
+
+        except models.Product.DoesNotExist:
+            return Response({"error":"product not Found"}, status=status.HTTP_404_NOT_FOUND)
+
+        
+        if variant_id:
+            try:
+                variant=models.ProductVariant.objects.get(id=variant_id,product=product)
+                self.check_object_permissions(request, variant)
+                
+                variant.delete()
+
+                return Response({"message":"Product variant is deleted"}, status=status.HTTP_200_OK)
+
+            except models.ProductVariant.DoesNotExist:
+
+                return Response(
+                    {"error":"product variant is not Found"}, status=status.HTTP_404_NOT_FOUND)
+        
+
+        product.delete()
+        user_name=self.request.user.username
+        tasks.delete_product(user_name,product_id)
+
+
+        return Response({"message": "Product deleted"}, status=200)
+
+        
+product_delete_view=ProductDeleteView.as_view()

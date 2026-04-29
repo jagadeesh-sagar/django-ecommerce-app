@@ -261,7 +261,22 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+            "hosts": [("127.0.0.1", 6379,0)],
         },
     },
 }
+
+CELERY_BROKER_URL = 'redis://localhost:6379/1'
+# CELERY_RESULT_BACKEND = 'redis://localhost:6379/2'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Kolkata'
+
+# Optional but recommended:
+CELERY_TASK_TRACK_STARTED = True      # marks task as STARTED (not just PENDING)
+CELERY_TASK_TIME_LIMIT = 30 * 60      # hard kill after 30 min
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60 # SoftTimeLimitExceeded raised at 25 min
+
+# For periodic tasks (requires django-celery-beat):
+# INSTALLED_APPS += ['django_celery_beat']  something like inventory sync or any db sync we can use this
