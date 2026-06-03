@@ -34,7 +34,8 @@ SECRET_KEY = 'django-insecure-!^kgc_w=so@79!s)v!o&#$^2jlmpl4rr7bdug&2xa=a2$nkvwu
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['13.234.124.118','13.233.78.207','localhost','127.0.0.1']
+ALLOWED_HOSTS = ['13.232.48.70','api.chatram.in',
+    'ecommerce.chatram.in','localhost','127.0.0.1']
 
 
 # In your DEBUG section, update:
@@ -42,6 +43,7 @@ if DEBUG:
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:5173", 
         "http://127.0.0.1:5173",
+        "https://ecommerce.chatram.in",
     ]
 else:
     CORS_ALLOWED_ORIGINS = [
@@ -53,8 +55,8 @@ else:
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "http://13.234.124.118",  # Add your backend server
-    "http://13.233.78.207",   # Add your other backend server
+    "https://ecommerce.chatram.in",
+    "https://api.chatram.in",  
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
@@ -145,8 +147,6 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
-
 
 # DATABASES = {
 #     'default': {
@@ -270,12 +270,12 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("127.0.0.1", 6379,0)],
+           "hosts": [("redis", 6379)],
         },
     },
 }
 
-CELERY_BROKER_URL = 'redis://localhost:6379/1'
+CELERY_BROKER_URL = "redis://redis:6379/1"
 # CELERY_RESULT_BACKEND = 'redis://localhost:6379/2'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
