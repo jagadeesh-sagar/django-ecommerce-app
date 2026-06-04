@@ -1,5 +1,5 @@
 from api.models import User
-import models
+from . import models
 from rest_framework import serializers
 
 class SellerRegistration(serializers.ModelSerializer):

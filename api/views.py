@@ -12,6 +12,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
+from django.contrib.auth import get_user_model
 
 from .models import User
 from .serializers import UserRegistrationSerializer
@@ -21,7 +22,7 @@ REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60  # 7 days in seconds
 
 COOKIE_DEFAULTS = dict(
     httponly=True,
-    secure=False,       # True in production (HTTPS)
+    secure=True,       # True in production (HTTPS)
     samesite='Strict',
 )
 
@@ -33,7 +34,7 @@ def _set_auth_cookies(response, access_token: str, refresh_token: str = None):
         value=access_token,
         httponly=False,     # intentionally readable by JS so the frontend
                             # can decode the payload (role, exp, etc.)
-        secure=False,       # True in prod
+        secure=True,       # True in prod
         samesite='Strict',
     )
     if refresh_token:
@@ -169,38 +170,71 @@ class CookieTokenRefreshView(TokenRefreshView):
     serializer_class = TokenRefreshSerializer
 
     def post(self, request, *args, **kwargs):
-        refresh_token = request.COOKIES.get('refresh_token')
+
+        refresh_token = request.COOKIES.get("refresh_token")
 
         if not refresh_token:
             return Response(
-                {'error': 'Refresh token cookie is missing'},
+                {"error": "Refresh token cookie is missing"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        serializer = self.get_serializer(data={'refresh': refresh_token})
+        serializer = self.get_serializer(
+            data={"refresh": refresh_token}
+        )
 
         try:
             serializer.is_valid(raise_exception=True)
-        except (TokenError, InvalidToken) as e:
-            return Response(
-                {'error': 'Refresh token is invalid or expired. Please log in again.'},
+
+        except (
+            TokenError,
+            InvalidToken,
+            get_user_model().DoesNotExist,
+        ):
+
+            response = Response(
+                {
+                    "error": "Session expired. Please log in again."
+                },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        new_access = serializer.validated_data['access']
-        # ROTATE_REFRESH_TOKENS=True in SIMPLE_JWT produces a new refresh token
-        new_refresh = serializer.validated_data.get('refresh')
+            response.delete_cookie("access")
+            response.delete_cookie("refresh_token")
+
+            return response
+
+        except Exception:
+
+            response = Response(
+                {
+                    "error": "Authentication error. Please log in again."
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+            response.delete_cookie("access")
+            response.delete_cookie("refresh_token")
+
+            return response
+
+        new_access = serializer.validated_data["access"]
+        new_refresh = serializer.validated_data.get("refresh")
 
         response = Response(
-            {'access': new_access, 'message': 'Token refreshed'},
+            {
+                "access": new_access,
+                "message": "Token refreshed",
+            },
             status=status.HTTP_200_OK,
         )
 
         _set_auth_cookies(
             response,
             access_token=new_access,
-            refresh_token=new_refresh,   # None -> _set_auth_cookies skips it
+            refresh_token=new_refresh,
         )
+
         return response
 
 
