@@ -276,8 +276,9 @@ class AddressSerializers(serializers.ModelSerializer):
     
     class Meta:
         model=models.Address
-        fields=['user','address_type','house_no','street','city','state','country',
+        fields=['id','user','address_type','house_no','street','city','state','country',
                 'postal_code','phone_number','other_number','is_default']
+        read_only_fields=['id']
         
     def update(self, instance, validated_data):
         is_default=validated_data.get('is_default')
