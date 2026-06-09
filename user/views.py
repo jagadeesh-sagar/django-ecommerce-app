@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated,AllowAny,IsAdminUser
 from rest_framework.pagination import LimitOffsetPagination,CursorPagination,PageNumberPagination
 
-from .permissions import IsBuyer,IsSeller,IsSellerOrReadOnly,IsProductOwner,IsAdminOrReadonly
+from .permissions import IsBuyer,IsSeller,IsSellerOrReadOnly,IsProductOwner,IsAdminOrReadonly,IsDeliveredProductBuyer
 from api.pagination import StandardPagination,LimitOffsetPagination,ProductCursorPagination
 from api.authentication import CookieJWTAuthentication
 from . import models
@@ -238,7 +238,7 @@ class ReviewView(APIView):
         - Delete the Review   
     '''
 
-    permission_classes=[IsBuyer]
+    permission_classes=[IsBuyer, IsDeliveredProductBuyer]
 
     queryset=models.Review.objects.all()
 

@@ -71,6 +71,7 @@ class ReviewSerializers(serializers.ModelSerializer):
         product=self.context.get('id')
         validated_data['product_id']=product
         validated_data['user']=self.context['request'].user
+        validated_data['is_verified_purchase']=True
         return super().create(validated_data)
 
 
@@ -279,10 +280,9 @@ class AddressSerializers(serializers.ModelSerializer):
         
         fields=['id','user','address_type','house_no','street','city','state','country',
                 'postal_code','phone_number','other_number','is_default']
+        
         read_only_fields=['id']
-        
-        read_only_fields = ['id']
-        
+
     def update(self, instance, validated_data):
         is_default=validated_data.get('is_default')
         
@@ -385,23 +385,24 @@ class CartItemCreateSerializers(serializers.ModelSerializer):
 
     def validate(self, attrs):
         
-        product=attrs.get('product_id')
-        variant=attrs.get('variant_id')
+        product = attrs.get('product')
+        variant = attrs.get('product_variant')
+        quantity = attrs.get('quantity', 1)
 
         if variant and variant.product != product:
             raise serializers.ValidationError(
                 "Selected variant does not belong to this product")
         
         if variant:
-            if variant.stock_qty>attrs['quantity']:
+            if variant.stock_qty < quantity:
                 raise serializers.ValidationError(
-                f"Only {variant.stock_qty} items available"
+                    f"Only {variant.stock_qty} items available"
                 )
-            else :
-                if product.stock_qty > attrs['quantity']:
-                    raise serializers.ValidationError(
+        else:
+            if product.stock_qty < quantity:
+                raise serializers.ValidationError(
                     f"Only {product.stock_qty} items available"
-                    )
+                )
 
         return attrs
 

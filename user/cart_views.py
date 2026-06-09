@@ -266,9 +266,10 @@ class CartItem(APIView):
         else :
             available_stock=cart_item.product.stock_qty
 
-        if cart_item.quantity>available_stock:
+        if quantity>available_stock:
             return Response(
-                {"error":f'only {available_stock} are available'}
+                {"error":f'only {available_stock} are available'},
+                status=status.HTTP_400_BAD_REQUEST
             )
         
         #updates the cart item quantity
@@ -452,7 +453,7 @@ class WhishView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        deleted_count,_=self.queryset.filter(user=self.request.user,product_id=product_id).delete()
+        deleted_count,_=models.Whishlist.objects.filter(user=request.user,product_id=product_id).delete()
 
         if deleted_count==0:
             return Response({"error":"item is not found"},

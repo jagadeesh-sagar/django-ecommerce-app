@@ -12,6 +12,6 @@ class User(AbstractUser):
     role_model=models.CharField(choices=ROLE_CHOICES,max_length=20,default='buyer')
 
     def is_buyer(self):
-        return self.role=='seller'
+        return self.role_model == 'buyer'
     def is_seller(self):
-        return self.role=='buyer'
+        return self.role_model == 'seller'

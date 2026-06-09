@@ -71,3 +71,35 @@ class IsOrderParticipant(BasePermission):
             product__seller_id=request.user.id
         ).exists()
     
+
+class IsDeliveredProductBuyer(BasePermission):
+    """
+    Only buyers who purchased the product and whose order/shipment status is delivered can review.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        product_id = request.GET.get('q')
+        if not product_id:
+            product_id = request.data.get('product') or request.data.get('product_id')
+
+        if not product_id:
+            return False
+
+        # Order status delivered
+        delivered_order_exists = Order.objects.filter(
+            user=request.user,
+            status='delivered',
+            items__product_id=product_id
+        ).exists()
+
+        # Shipment status delivered
+        delivered_shipment_exists = Order.objects.filter(
+            user=request.user,
+            items__product_id=product_id,
+            shipment__status='delivered'
+        ).exists()
+
+        return delivered_order_exists or delivered_shipment_exists
+    
