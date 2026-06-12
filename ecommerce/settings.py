@@ -141,26 +141,26 @@ ASGI_APPLICATION = "ecommerce.asgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': get_ssm_param('/Ecommerce/db_name'),  # Database name
-#         'USER': 'postgres',  # MySQL username (e.g., 'root')
-#         'PASSWORD': get_ssm_param('/Ecommerce/db_passowrd'),  # MySQL password
-#         'HOST':get_ssm_param('/Ecommerce/db_DNS'),  # Or '127.0.0.1' or your MySQL server IP
-#         'PORT': '5432',  # Default MySQL port
-#         'OPTIONS': {
-#          'connect_timeout': 10,
-#         },
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': get_ssm_param('/Ecommerce/db_name'),  # Database name
+        'USER': 'postgres',  # MySQL username (e.g., 'root')
+        'PASSWORD': get_ssm_param('/Ecommerce/db_passowrd'),  # MySQL password
+        'HOST':get_ssm_param('/Ecommerce/db_DNS'),  # Or '127.0.0.1' or your MySQL server IP
+        'PORT': '5432',  # Default MySQL port
+        'OPTIONS': {
+         'connect_timeout': 10,
+        },
+    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -232,8 +232,8 @@ SIMPLE_JWT={
 AWS_ACCESS_KEY_ID = get_ssm_param('/Ecommerce/aws_access_key')
 AWS_SECRET_ACCESS_KEY = get_ssm_param('/Ecommerce/aws_secret_access_key')
 AWS_S3_REGION_NAME = get_ssm_param('/Ecommerce/aws_s3_region_name')
-AWS_STORAGE_BUCKET_NAME = get_ssm_param('/StudyBud/s3_bucket_name')
-AWS_SNS_ARN=get_ssm_param('/StudyBud/sns_arn')
+AWS_STORAGE_BUCKET_NAME = get_ssm_param('/Ecommerce/s3_bucket_name')
+AWS_SNS_ARN=get_ssm_param('/Ecommerce/sns_arn')
 
 DJANGO_MCP_GLOBAL_SERVER_CONFIG = {
     "name": "Ecommerce MCP Server",
