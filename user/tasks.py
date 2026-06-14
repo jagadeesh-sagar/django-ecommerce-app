@@ -43,3 +43,17 @@ def delete_product(user_name,product_id):
 
   except Exception as e:
     logger.error(f's3 object deletion for product image failed:{e}')
+
+@shared_task(bind=True,max_retries=3,default_retry_delay=60)
+def delete_s3_file(self, object_key):
+  s3_client=boto3.client("s3",
+                           aws_access_key_id = settings.AWS_ACCESS_KEY_ID,
+                           aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                            region_name=settings.AWS_S3_REGION_NAME )
+  try:
+    s3_client.delete_object(
+      Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+      Key=object_key
+    )
+  except Exception as e:
+    logger.error(f's3 object deletion failed for key {object_key}:{e}')

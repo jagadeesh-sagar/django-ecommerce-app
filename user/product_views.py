@@ -64,24 +64,33 @@ class ProductsListAPIView(APIView):
 product_list_view=ProductsListAPIView.as_view()
 
 
-class ProductDetailView(mixins.RetrieveModelMixin,generics.GenericAPIView):
+class ProductDetailView(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, generics.GenericAPIView):
     '''
      Product Detail API
      
      Allows all Users(Authenticated or not) to:
      - List details of a Product
-
+     Allows Product Owner to:
+     - Update details of a Product
     '''
-    # authentication_classes = [CookieJWTAuthentication] 
-    permission_classes=[AllowAny]
-  
 
     queryset=models.Product.objects\
     .select_related('category','brand','seller__user') \
     .prefetch_related('images','variants','reviews','questions')
 
-    serializer_class=serializers.ProductDetailSerializers
     lookup_field='pk'
+
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return serializers.ProductUpdateSerializer
+        return serializers.ProductDetailSerializers
+
+    def get_permissions(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            self.permission_classes = [IsAuthenticated, IsSeller, IsProductOwner]
+        else:
+            self.permission_classes = [AllowAny]
+        return super().get_permissions()
 
     def get(self,request,*args,**kwargs):
         '''
@@ -156,7 +165,12 @@ class ProductDetailView(mixins.RetrieveModelMixin,generics.GenericAPIView):
         # print("AUTH CLASS:",self.request.successful_authenticator)
         # print("COOKIES:",self.request.COOKIES)
         return self.retrieve(request,*args,**kwargs)
-    
+
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
     
 product_detail_view=ProductDetailView.as_view()
 
@@ -390,6 +404,38 @@ class ProductImageListview(APIView):
             serializer.save()
             return Response(serializer.data,status=status.HTTP_201_CREATED)
         return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        '''
+        Delete a product image.
+
+        Request Body:
+        {
+            "image_id": Integer
+        }
+        '''
+        image_id = request.data.get('image_id')
+        if not image_id:
+            return Response({"error": "image_id is required in the body"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            image = models.ProductImage.objects.get(id=image_id)
+            if image.product.seller.user != request.user:
+                return Response({'error': 'you dont have permission to delete media files from this Product'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Delete from S3
+            if image.image_url:
+                try:
+                    key = image.image_url.split('.amazonaws.com/')[1]
+                    tasks.delete_s3_file.delay(key)
+                except IndexError:
+                    pass
+
+            image.delete()
+            return Response({"message": "Image deleted successfully"}, status=status.HTTP_200_OK)
+            
+        except models.ProductImage.DoesNotExist:
+            return Response({"error": "Image not found"}, status=status.HTTP_404_NOT_FOUND)
     
 productImage_retrieve_view=ProductImageListview.as_view()
 

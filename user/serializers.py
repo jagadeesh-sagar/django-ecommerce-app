@@ -242,6 +242,31 @@ class ProductCreateSerializers(serializers.ModelSerializer):
                 ]
                 models.ProductVariant.objects.bulk_create(varinats_items)
         return product
+
+class ProductUpdateSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="name", required=False)
+    category = serializers.SlugRelatedField(
+        slug_field='name',
+        queryset=models.Category.objects.all(),
+        required=False
+    )
+    brand = serializers.SlugRelatedField(
+        slug_field='name',
+        queryset=models.Brand.objects.all(),
+        required=False
+    )
+
+    class Meta:
+        model = models.Product
+        fields = ['id', 'product_name', 'description', 'base_price',
+                  'category', 'brand', 'stock_qty', 'sku', 'is_active']
+        read_only_fields = ['id']
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
             
     
 class ProductSerializer(serializers.ModelSerializer):
