@@ -8,6 +8,7 @@ from rest_framework import status
 
 
 class SellerRegister(APIView):
+    permission_classes = [IsAuthenticated]
 
     def get(self,request):
         queryset=models.Seller.objects.filter(user=self.request.user)
