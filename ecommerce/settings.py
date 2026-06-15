@@ -39,29 +39,26 @@ SECRET_KEY = 'django-insecure-!^kgc_w=so@79!s)v!o&#$^2jlmpl4rr7bdug&2xa=a2$nkvwu
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['13.232.48.70','api.chatram.in',
-    'ecommerce.chatram.in','localhost','127.0.0.1']
+ALLOWED_HOSTS = ['*']
 
 
 # In your DEBUG section, update:
 if DEBUG:
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:5173", 
-        "http://127.0.0.1:5173",
-        "https://ecommerce.chatram.in",
-    ]
+    CORS_ALLOW_ALL_ORIGINS = True
 else:
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        # Add your production frontend URLs here when you deploy frontend
-    ]
+    CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://ecommerce.chatram.in",
     "https://api.chatram.in",  
+    "http://ecommerce.chatram.in",
+    "http://api.chatram.in",
+    "http://13.204.115.227",
+    "http://13.204.115.227:5173",
+    "https://13.204.115.227",
+    "https://13.204.115.227:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
