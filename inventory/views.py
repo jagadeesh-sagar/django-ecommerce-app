@@ -12,6 +12,8 @@ class SellerRegister(APIView):
 
     def get(self,request):
         queryset=models.Seller.objects.filter(user=self.request.user)
+        if not queryset.exists():
+            return Response({"error": "Seller not registered"}, status=status.HTTP_404_NOT_FOUND)
         serializer=serializers.SellerRegistration(queryset,many=True)
         return Response(serializer.data,status=status.HTTP_200_OK)
     
