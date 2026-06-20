@@ -42,36 +42,70 @@ class ProductImageSerializers(serializers.ModelSerializer):
             return super().create(validated_data)
         
 
+class ReviewMediaSerializer(serializers.ModelSerializer):
+    """Read/write serializer for ReviewMedia attachments."""
+    class Meta:
+        model  = models.ReviewMedia
+        fields = ['id', 'url', 'media_type', 'display_order']
+        read_only_fields = ['id']
+
+    def validate(self, attrs):
+        review = self.context.get('review')
+        if review is None:
+            return attrs
+        media_type = attrs.get('media_type', 'image')
+        if media_type == 'video':
+            existing_videos = models.ReviewMedia.objects.filter(review=review, media_type='video').count()
+            if existing_videos >= 1:
+                raise serializers.ValidationError('Only 1 video per review is allowed.')
+        else:
+            existing_images = models.ReviewMedia.objects.filter(review=review, media_type='image').count()
+            if existing_images >= 5:
+                raise serializers.ValidationError('Maximum 5 images per review.')
+        return attrs
+
+    def create(self, validated_data):
+        validated_data['review'] = self.context['review']
+        return super().create(validated_data)
+
+
 class ReviewSerializers(serializers.ModelSerializer):
+    # nested media — read-only in this serializer (uploads go via ReviewMediaPresignView)
+    media = ReviewMediaSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Review
         fields = [
+            'id',
             'rating',
             'review_text',
-            'review_image',
-            'review_video',
+            'review_image',   # kept for backward compatibility
+            'review_video',   # kept for backward compatibility
             'is_verified_purchase',
+            'helpful_count',
+            'created_at',
+            'media',          # new — list of ReviewMedia attachments
         ]
+        read_only_fields = ['id', 'is_verified_purchase', 'helpful_count', 'created_at', 'media']
 
-    def validate(self,attrs):
-        user=self.context["request"].user
-        product_id=self.context.get('id')
+    def validate(self, attrs):
+        user = self.context["request"].user
+        product_id = self.context.get('id')
 
         if self.instance is not None:
             return attrs
-        
-        if models.Review.objects.filter(user=user,product_id=product_id).exists():
+
+        if models.Review.objects.filter(user=user, product_id=product_id).exists():
             raise serializers.ValidationError(
                 'you have already reviewed this product ')
-        
+
         return attrs
-    
-    def create(self,validated_data):
-        product=self.context.get('id')
-        validated_data['product_id']=product
-        validated_data['user']=self.context['request'].user
-        validated_data['is_verified_purchase']=True
+
+    def create(self, validated_data):
+        product = self.context.get('id')
+        validated_data['product_id'] = product
+        validated_data['user'] = self.context['request'].user
+        validated_data['is_verified_purchase'] = True
         return super().create(validated_data)
 
 
@@ -164,12 +198,13 @@ class ProductDetailSerializers(serializers.ModelSerializer):
     new_question=serializers.SerializerMethodField()
     questions=QnA(many=True)
     whishlist=serializers.SerializerMethodField()
+    can_review = serializers.SerializerMethodField()
 
     class Meta:
         model=models.Product
         fields=['seller','seller_name','images','product_name','category_name'
                 ,'description','base_price','category','brand_name',
-            'brand','stock_qty','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist'
+            'brand','stock_qty','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist','can_review'
             ]
 
     def _get_action_url(self, view_name,obj):
@@ -187,6 +222,16 @@ class ProductDetailSerializers(serializers.ModelSerializer):
     
     def get_whishlist(self,obj):
        return self._get_action_url('whishlist',obj)
+
+    def get_can_review(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
+        return models.Order.objects.filter(
+            user=request.user,
+            status='delivered',
+            items__product=obj
+        ).exists()
 
 
 

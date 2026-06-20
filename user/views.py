@@ -11,6 +11,7 @@ from . import models
 from . import serializers
 
 import anthropic
+import boto3
 from django.conf import settings
 
 
@@ -164,32 +165,20 @@ class CategoryListCreateview(generics.ListCreateAPIView):
 
     Method:
         GET  - returns Product categories
+             - supports ?search=<query> for name filtering
         POST - creates a New Product Category
-
-    request body:
-    ```Json
-    {
-        "name": "String (Unique)",
-        "parent": "Integer (Parent Category ID or null)",
-        "origin": "String (Optional)",
-        "description": "String (Optional)"
-    }
-    ```
-    
-    Example:
-    ```Json
-    {
-        "name": "Electronics",
-        "parent": null,
-        "origin": "Global",
-        "description": "Gadgets, appliances, and tech accessories."
-    }  
-    ```
     '''
 
     permission_classes=[IsAdminOrReadonly]
-    queryset = models.Category.objects.all()
     serializer_class = serializers.CategorySerializers
+
+    def get_queryset(self):
+        qs = models.Category.objects.all().order_by('name')
+        q = self.request.query_params.get('search', '').strip()
+        if q:
+            qs = qs.filter(name__icontains=q)
+        return qs
+
 category_view=CategoryListCreateview.as_view()
 
 
@@ -409,88 +398,137 @@ class ReviewView(APIView):
     
 review_list_view=ReviewView.as_view()
 
+
+class ReviewMediaPresignView(APIView):
+    '''
+    Review Media Upload API
+
+    Allows authenticated buyers to attach images/videos to their reviews
+    via S3 pre-signed URLs (same pattern as product image uploads).
+
+    Constraints (enforced on POST):
+        - max 5 images per review
+        - max 1 video  per review
+
+    Flow:
+        1. GET  ?file_name=&file_type=images|videos&review_id=
+           → { upload_url, file_url }   (pre-signed PUT to S3)
+        2. PUT  <upload_url>  (done entirely from the browser — no Django involved)
+        3. POST { review_id, url, media_type, display_order }
+           → saves ReviewMedia row
+    '''
+    permission_classes = [IsAuthenticated]
+
+    _s3 = None
+
+    def _get_s3(self):
+        if self._s3 is None:
+            ReviewMediaPresignView._s3 = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_S3_REGION_NAME,
+            )
+        return self._s3
+
+    def get(self, request):
+        '''Generate a pre-signed S3 PUT URL for a review media file.'''
+        file_name  = request.GET.get('file_name')
+        file_type  = request.GET.get('file_type', 'images')   # 'images' or 'videos'
+        review_id  = request.GET.get('review_id')
+
+        if not all([file_name, review_id]):
+            return Response(
+                {'error': 'file_name and review_id are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            review = models.Review.objects.get(id=review_id)
+        except models.Review.DoesNotExist:
+            return Response({'error': 'Review not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only the review owner may upload media for it
+        if review.user != request.user:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        user = request.user
+        s3_key = f'{user}/reviews/{review_id}/{file_type}/{file_name}'
+
+        presigned_url = self._get_s3().generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                'Key': s3_key,
+            },
+            ExpiresIn=3600,
+        )
+        file_url = (
+            f'https://{settings.AWS_STORAGE_BUCKET_NAME}'
+            f'.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_key}'
+        )
+        return Response({'upload_url': presigned_url, 'file_url': file_url})
+
+    def post(self, request):
+        '''Save a ReviewMedia row after the browser PUT to S3 succeeds.'''
+        review_id   = request.data.get('review_id')
+        url         = request.data.get('url')
+        media_type  = request.data.get('media_type', 'image')
+        display_order = request.data.get('display_order', 1)
+
+        if not all([review_id, url]):
+            return Response(
+                {'error': 'review_id and url are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            review = models.Review.objects.get(id=review_id)
+        except models.Review.DoesNotExist:
+            return Response({'error': 'Review not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if review.user != request.user:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = serializers.ReviewMediaSerializer(
+            data={'url': url, 'media_type': media_type, 'display_order': display_order},
+            context={'review': review},
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+review_media_view = ReviewMediaPresignView.as_view()
+
+
 class BrandListCreateview(generics.ListCreateAPIView):
     '''
     Brand API
 
     Allows verified and Authenticated Sellers to:
         - List all Brands
+        - Search brands by name: GET /user/brand/?search=<query>
         - Create a new Brand
 
     Methods:
-        GET  - Returns all Brands
+        GET  - Returns all Brands (no pagination — full list for dropdowns)
+             - supports ?search=<name> for live search
         POST - Creates a new Brand
 
     Access:
         Authenticated Sellers only
-
-    GET Response:
-        200 OK - List of Brands
-        Example:
-        ```json
-        [
-            {
-                "id": 1,
-                "name": "samsung",
-                "logo": "https://example.com/samsung-logo.png",
-                "description": "South Korean multinational electronics company.",
-                "is_active": true
-            },
-            {
-                "id": 2,
-                "name": "apple",
-                "logo": "https://example.com/apple-logo.png",
-                "description": "American multinational technology company.",
-                "is_active": true
-            }
-        ]
-        ```
-
-    POST Request Body:
-        ```json
-        {
-            "name": "String (Unique)",
-            "logo": "URL (Optional)",
-            "description": "String (Optional)",
-            "is_active": "Boolean (true/false)"
-        }
-        ```
-
-        Example:
-        ```json
-        {
-            "name": "OnePlus",
-            "logo": "https://example.com/oneplus-logo.png",
-            "description": "Chinese smartphone manufacturer.",
-            "is_active": true
-        }
-        ```
-
-    POST Response:
-        201 CREATED - Brand created
-        Example:
-        ```json
-        {
-            "id": 3,
-            "name": "OnePlus",
-            "logo": "https://example.com/oneplus-logo.png",
-            "description": "Chinese smartphone manufacturer.",
-            "is_active": true
-        }
-        ```
-        400 BAD REQUEST - Validation error
-        Example:
-        ```json
-        {
-            "name": [
-                "brand with this name already exists."
-            ]
-        }
-        ```
     '''
     permission_classes=[IsSeller]
-    queryset=models.Brand.objects.all()
     serializer_class=serializers.BrandSerializer
+
+    def get_queryset(self):
+        qs = models.Brand.objects.all().order_by('name')
+        q = self.request.query_params.get('search', '').strip()
+        if q:
+            qs = qs.filter(name__icontains=q)
+        return qs
 
 brand_list_create_view=BrandListCreateview.as_view()
 

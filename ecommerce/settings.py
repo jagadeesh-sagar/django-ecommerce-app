@@ -52,8 +52,10 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://ecommerce.chatram.in",
-    "https://api.chatram.in",  
+    "https://api.chatram.in", 
+    "https://mcp.chatram.in" ,
     "http://ecommerce.chatram.in",
+    "http://mcp.chatram.in" ,
     "http://api.chatram.in",
     "http://13.204.115.227",
     "http://13.204.115.227:5173",
@@ -212,7 +214,7 @@ REST_FRAMEWORK={
   'DEFAULT_AUTHENTICATION_CLASSES':[
       'api.authentication.CookieJWTAuthentication',  # so we built custom auth
           "rest_framework_simplejwt.authentication.JWTAuthentication", # it reads token from  'Authorization: Bearer <token>' but we are using cookies
-                    'rest_framework.authentication.SessionAuthentication',
+                    # 'rest_framework.authentication.SessionAuthentication',
 
   ],
     "DEFAULT_PERMISSION_CLASSES":[
@@ -247,7 +249,7 @@ DJANGO_MCP_GLOBAL_SERVER_CONFIG = {
 # Replace these values with your real keys before running.
 # In production, load them from SSM / env vars just like the AWS keys above.
 ANTHROPIC_API_KEY = get_ssm_param('/Ecommerce/aws_anthropic_ai_api_key')   # TODO: move to SSM
-MCP_SERVER_URL    =  "https://lid-canon-sedative.ngrok-free.dev"    # TODO: public URL for prod
+MCP_SERVER_URL = "https://mcp.chatram.in"   # TODO: public URL for prod
 # ────────────────────────────────────────────────────────────────────────────
 
 

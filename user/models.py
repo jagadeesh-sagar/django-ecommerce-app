@@ -131,6 +131,30 @@ class Review(models.Model):
         return f"Review by {self.user.username} for {self.product.name}"
 
 
+class ReviewMedia(models.Model):
+    """
+    Stores individual image/video attachments for a Review.
+    Constraints enforced in the serializer:
+        - max 5 images per review
+        - max 1 video  per review
+    The old Review.review_image / Review.review_video fields are kept for
+    backward compatibility but new uploads go here.
+    """
+    MEDIA_TYPES = [('image', 'Image'), ('video', 'Video')]
+
+    review       = models.ForeignKey(Review, on_delete=models.CASCADE, related_name='media')
+    url          = models.URLField(max_length=500)
+    media_type   = models.CharField(max_length=10, choices=MEDIA_TYPES, default='image')
+    display_order = models.PositiveSmallIntegerField(default=1)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['display_order', 'created_at']
+
+    def __str__(self):
+        return f"{self.media_type} for Review #{self.review_id}"
+
+
 class QnA(models.Model):
     user=models.ForeignKey(User,on_delete=models.CASCADE, related_name='questions')
     product=models.ForeignKey(Product,on_delete=models.CASCADE, related_name='questions')

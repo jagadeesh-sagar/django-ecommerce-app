@@ -185,3 +185,58 @@ class SellerOrderListView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 seller_order_list_view = SellerOrderListView.as_view()
+
+
+class OrderStatusUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        '''
+        Update the status of an order
+        
+        Request Body:
+        ```json
+        {
+            "status": "delivered"
+        }
+        ```
+        '''
+        order = get_object_or_404(models.Order, id=pk)
+        
+        # Verify user is either the order owner (buyer) or the seller of items in the order or admin
+        is_buyer = order.user == request.user
+        
+        is_seller = False
+        try:
+            seller_name = Seller.objects.get(user=request.user)
+            is_seller = order.items.filter(product__seller=seller_name).exists()
+        except Seller.DoesNotExist:
+            pass
+            
+        if not (is_buyer or is_seller or request.user.is_staff):
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+            
+        new_status = request.data.get('status')
+        valid_statuses = [choice[0] for choice in models.Order.ORDER_STATUS]
+        
+        if not new_status or new_status not in valid_statuses:
+            return Response(
+                {'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        order.status = new_status
+        order.save()
+        
+        # Log to OrderStatusHistory
+        models.OrderStatusHistory.objects.create(
+            order=order,
+            status=new_status,
+            notes=f"Updated to {new_status} via status update API",
+            changed_by=request.user
+        )
+        
+        serializer = serializers.OrderReadSerializers(order, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+order_status_update_view = OrderStatusUpdateView.as_view()
