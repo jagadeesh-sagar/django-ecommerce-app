@@ -21,7 +21,7 @@ urlpatterns=[
     path('brand/',views.brand_list_create_view,name='brands'),
     path('whishlist/',cart_views.wishlist_view,name='whishlist'),
     path('order/',order_views.order_list_create_view,name='order'),
-    path('order/<int:pk>/status/', order_views.order_status_update_view, name='order-status-update'),
+    path('order-item/<int:pk>/status/', order_views.order_item_status_update_view, name='order-item-status-update'),
     path('seller/orders/', order_views.seller_order_list_view),
     path("payments/cod/", payment_views.CashOnDeliveryView.as_view()),        
     path("payments/cod/<int:order_id>/confirm/", payment_views.ConfirmCODPaymentView.as_view()),

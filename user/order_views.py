@@ -187,56 +187,44 @@ class SellerOrderListView(APIView):
 seller_order_list_view = SellerOrderListView.as_view()
 
 
-class OrderStatusUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
+class OrderItemStatusUpdateView(APIView):
+    permission_classes = [IsSeller]
 
     def patch(self, request, pk):
         '''
-        Update the status of an order
-        
-        Request Body:
-        ```json
-        {
-            "status": "delivered"
-        }
-        ```
+        Allows the product owner (seller) to mark their order item as delivered
         '''
-        order = get_object_or_404(models.Order, id=pk)
+        item = get_object_or_404(models.OrderItem, id=pk)
         
-        # Verify user is either the order owner (buyer) or the seller of items in the order or admin
-        is_buyer = order.user == request.user
-        
-        is_seller = False
         try:
-            seller_name = Seller.objects.get(user=request.user)
-            is_seller = order.items.filter(product__seller=seller_name).exists()
+            seller = Seller.objects.get(user=request.user)
         except Seller.DoesNotExist:
-            pass
+            return Response({'error': 'Not a registered seller'}, status=status.HTTP_403_FORBIDDEN)
             
-        if not (is_buyer or is_seller or request.user.is_staff):
-            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        # Verify the seller owns the product in this order item
+        if item.product.seller != seller:
+            return Response({'error': 'Permission denied. You do not own this product.'}, status=status.HTTP_403_FORBIDDEN)
             
-        new_status = request.data.get('status')
-        valid_statuses = [choice[0] for choice in models.Order.ORDER_STATUS]
+        new_status = request.data.get('status', 'delivered')
+        item.status = new_status
+        item.save()
         
-        if not new_status or new_status not in valid_statuses:
-            return Response(
-                {'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'},
-                status=status.HTTP_400_BAD_REQUEST
+        # Check if all items in the parent order are now delivered
+        order = item.order
+        # If there are NO items in this order that are NOT delivered, then all are delivered.
+        if not order.items.exclude(status='delivered').exists():
+            order.status = 'delivered'
+            order.save()
+            
+            # Log the parent order status update
+            models.OrderStatusHistory.objects.create(
+                order=order,
+                status='delivered',
+                notes="Auto-updated: all order items have been delivered",
+                changed_by=request.user
             )
-            
-        order.status = new_status
-        order.save()
         
-        # Log to OrderStatusHistory
-        models.OrderStatusHistory.objects.create(
-            order=order,
-            status=new_status,
-            notes=f"Updated to {new_status} via status update API",
-            changed_by=request.user
-        )
-        
-        serializer = serializers.OrderReadSerializers(order, context={'request': request})
+        serializer = serializers.SellerOrderItemSerializer(item, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-order_status_update_view = OrderStatusUpdateView.as_view()
+order_item_status_update_view = OrderItemStatusUpdateView.as_view()

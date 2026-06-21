@@ -227,10 +227,10 @@ class ProductDetailSerializers(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or not request.user or not request.user.is_authenticated:
             return False
-        return models.Order.objects.filter(
-            user=request.user,
+        return models.OrderItem.objects.filter(
+            order__user=request.user,
             status='delivered',
-            items__product=obj
+            product=obj
         ).exists()
 
 
@@ -529,7 +529,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
     product_name=serializers.CharField(source="product.name",read_only=True)
     class Meta:
         model=models.OrderItem
-        fields=["product","product_name","product_variant","quantity"]
+        fields=["id","product","product_name","product_variant","quantity","status"]
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -634,11 +634,11 @@ class PaymentSerializers(serializers.ModelSerializer):
     
 
 class SellerOrderItemSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.product_name', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True)
 
     class Meta:
         model = models.OrderItem
-        fields = ['product', 'product_name', 'product_variant', 'quantity']
+        fields = ['id', 'product', 'product_name', 'product_variant', 'quantity', 'status']
 
 
 class SellerOrderSerializer(serializers.ModelSerializer):

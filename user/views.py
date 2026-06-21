@@ -385,14 +385,34 @@ class ReviewView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
-        count_review,_=models.Review.objects.filter(
+        review = models.Review.objects.filter(
             user=request.user,
             product_id=product_id
-        ).delete()
+        ).first()
 
-        if count_review==0:
+        if not review:
             return Response({"error":"review is not found"},
                             status=status.HTTP_404_NOT_FOUND)
+                            
+        # Gather all S3 keys from ReviewMedia before deleting
+        from urllib.parse import urlparse
+        media_urls = list(review.media.values_list('url', flat=True))
+        s3_keys = []
+        for url in media_urls:
+            try:
+                parsed = urlparse(url)
+                # The path typically starts with a '/', so strip it
+                key = parsed.path.lstrip('/')
+                s3_keys.append(key)
+            except Exception:
+                pass
+                
+        # Trigger Celery task if there are media files
+        if s3_keys:
+            from .tasks import delete_s3_files
+            delete_s3_files.delay(s3_keys)
+            
+        review.delete()
      
         return Response({"message":"deleted successfully"},status=status.HTTP_200_OK)
     
@@ -498,6 +518,36 @@ class ReviewMediaPresignView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        '''Delete a ReviewMedia item and its corresponding S3 file.'''
+        media_id = request.GET.get('id')
+        if not media_id:
+            return Response(
+                {"error": "Media id (id) is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            media = models.ReviewMedia.objects.get(id=media_id)
+        except models.ReviewMedia.DoesNotExist:
+            return Response({"error": "Media not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+        if media.review.user != request.user:
+            return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+            
+        # Trigger Celery task to delete from S3
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(media.url)
+            s3_key = parsed.path.lstrip('/')
+            from .tasks import delete_s3_files
+            delete_s3_files.delay([s3_key])
+        except Exception:
+            pass
+            
+        media.delete()
+        return Response({"message": "Media deleted successfully"}, status=status.HTTP_200_OK)
 
 
 review_media_view = ReviewMediaPresignView.as_view()

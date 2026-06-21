@@ -57,3 +57,20 @@ def delete_s3_file(self, object_key):
     )
   except Exception as e:
     logger.error(f's3 object deletion failed for key {object_key}:{e}')
+
+@shared_task(bind=True,max_retries=3,default_retry_delay=60)
+def delete_s3_files(self, object_keys):
+    if not object_keys:
+        return
+    s3_client=boto3.client("s3",
+                             aws_access_key_id = settings.AWS_ACCESS_KEY_ID,
+                             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                              region_name=settings.AWS_S3_REGION_NAME )
+    try:
+        objects=[{'Key': key} for key in object_keys]
+        s3_client.delete_objects(
+            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+            Delete={'Objects': objects}
+        )
+    except Exception as e:
+        logger.error(f's3 bulk object deletion failed: {e}')

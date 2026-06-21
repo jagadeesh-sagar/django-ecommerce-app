@@ -205,10 +205,7 @@ class Whishlist(models.Model):
     def __str__(self):
         return f"{self.user.username}'s wishlist item"
 
-
-class Order(models.Model):
-    
-    ORDER_STATUS = [
+ORDER_STATUS = [
     ('pending', 'Pending'),
     ('processing', 'Processing'),
     ('shipped', 'Shipped'),
@@ -216,6 +213,8 @@ class Order(models.Model):
     ('cancelled', 'Cancelled'),
     ('returned', 'Returned')
       ]
+
+class Order(models.Model):
     
     user=models.ForeignKey(User,on_delete=models.CASCADE,related_name='orders')
     order_number = models.CharField(max_length=100, unique=True)
@@ -238,6 +237,7 @@ class Order(models.Model):
         return f"Order {self.order_number}"
 
 class OrderItem(models.Model):
+    
     order=models.ForeignKey(Order,on_delete=models.CASCADE,related_name='items')
     product=models.ForeignKey(Product,on_delete=models.CASCADE)
     product_variant=models.ForeignKey(ProductVariant,blank=True,null=True,on_delete=models.SET_NULL)
@@ -245,6 +245,7 @@ class OrderItem(models.Model):
     unit_price=models.DecimalField(max_digits=10,decimal_places=2)
     total_price=models.DecimalField(max_digits=10,decimal_places=2)
     discount_applied=models.DecimalField(max_digits=109,decimal_places=2,default=0)
+    status = models.CharField(max_length=20, choices=ORDER_STATUS, default='pending')
 
     def __str__(self):
         return f"{self.quantity} x {self.product_variant}"

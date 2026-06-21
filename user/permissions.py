@@ -87,14 +87,14 @@ class IsDeliveredProductBuyer(BasePermission):
         if not product_id:
             return False
 
-        # Order status delivered
-        delivered_order_exists = Order.objects.filter(
-            user=request.user,
+        # Order item status delivered
+        delivered_order_exists = OrderItem.objects.filter(
+            order__user=request.user,
             status='delivered',
-            items__product_id=product_id
+            product_id=product_id
         ).exists()
 
-        # Shipment status delivered
+        # Shipment status delivered (keeping this logic as fallback if shipment tracking is used)
         delivered_shipment_exists = Order.objects.filter(
             user=request.user,
             items__product_id=product_id,
