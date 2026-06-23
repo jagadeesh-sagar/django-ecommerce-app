@@ -23,7 +23,7 @@ class ProductImageSerializers(serializers.ModelSerializer):
 
     class Meta:
         model = models.ProductImage
-        fields = ['image_url', 'alt_text', 'video_url', 
+        fields = ['id', 'image_url', 'alt_text', 'video_url', 
                   'is_primary', 'display_order']
 
     def create(self,validated_data):
@@ -72,11 +72,13 @@ class ReviewMediaSerializer(serializers.ModelSerializer):
 class ReviewSerializers(serializers.ModelSerializer):
     # nested media — read-only in this serializer (uploads go via ReviewMediaPresignView)
     media = ReviewMediaSerializer(many=True, read_only=True)
+    user = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = models.Review
         fields = [
             'id',
+            'user',
             'rating',
             'review_text',
             'review_image',   # kept for backward compatibility

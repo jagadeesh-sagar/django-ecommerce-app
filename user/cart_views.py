@@ -79,7 +79,18 @@ class CartItem(APIView):
         '''
         # retrives cart if Exists else creates a New one
         cart=models.Cart.objects.get_or_create(user=self.request.user)
-        cartitem=models.CartItem.objects.filter(Q(cart__user=cart[0].user))
+        cartitem = models.CartItem.objects.filter(
+            Q(cart__user=cart[0].user)
+            ).select_related(
+                'product__category',
+                'product__brand',
+                'product__seller__user',
+                'product_variant',
+            ).prefetch_related(
+                'product__images',
+                'product__variants',
+                'product__reviews',
+            )
 
         paginator=StandardPagination()
         result_page=paginator.paginate_queryset(cartitem,request)

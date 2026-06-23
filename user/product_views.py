@@ -53,7 +53,7 @@ class ProductsListAPIView(APIView):
         '''
         queryset=models.Product.objects.select_related(
             'category', 'brand'
-        )
+        ).prefetch_related('images')
         
         paginator = StandardPagination()
         result_page = paginator.paginate_queryset(queryset, request)
@@ -398,12 +398,33 @@ class ProductImageListview(APIView):
             return Response({'error':'user does not registerd as a seller'},status=status.HTTP_404_NOT_FOUND)
             
 
-        serializer=serializers.ProductImageSerializers(data=request.data,context={"request":request,"product_id":product_id})
-  
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data,status=status.HTTP_201_CREATED)
-        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+        image_url = request.data.get('image_url', '')
+        video_url = request.data.get('video_url', '')
+        is_primary = request.data.get('is_primary', False)
+
+        # Enforce single primary image rule
+        if is_primary:
+            models.ProductImage.objects.filter(product_id=product_id, is_primary=True).update(is_primary=False)
+
+        # Upsert based on URL to prevent duplicates during is_primary toggling
+        existing_image = None
+        if image_url:
+            existing_image = models.ProductImage.objects.filter(product_id=product_id, image_url=image_url).first()
+        elif video_url:
+            existing_image = models.ProductImage.objects.filter(product_id=product_id, video_url=video_url).first()
+
+        if existing_image:
+            serializer = serializers.ProductImageSerializers(existing_image, data=request.data, context={"request":request,"product_id":product_id}, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            serializer = serializers.ProductImageSerializers(data=request.data, context={"request":request,"product_id":product_id})
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request):
         '''

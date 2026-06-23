@@ -605,7 +605,7 @@ class AnthropicProxyView(APIView):
             client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
             message = client.beta.messages.create(
-                model="claude-opus-4-5",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=4096,
                 betas=["mcp-client-2025-04-04"],
                 system=(
