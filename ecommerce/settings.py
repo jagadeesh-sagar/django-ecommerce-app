@@ -298,3 +298,11 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60 # SoftTimeLimitExceeded raised at 25 min
 
 RAZORPAY_KEY_ID =  get_ssm_param('/Ecommerce/aws_razorpay_id')
 RAZORPAY_KEY_SECRET = get_ssm_param('/Ecommerce/aws_razorpay_key_secret')
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = get_ssm_param('/Ecommerce/email_address') 
+EMAIL_HOST_PASSWORD = get_ssm_param('/Ecommerce/email_password')           
+DEFAULT_FROM_EMAIL = get_ssm_param('/Ecommerce/email_address')  

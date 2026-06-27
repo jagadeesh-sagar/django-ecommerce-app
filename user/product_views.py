@@ -13,12 +13,30 @@ from . import tasks
 from api.models import User
 from inventory.models import Seller
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, Avg, Count
+from django.core.cache import cache
 
 import boto3
+# import random
+import secrets
 from django.conf import settings
 
 from api.authentication import CookieJWTAuthentication
+
+def otp_cache_key(user_id,object_type,obj_id):
+    return f'delete_otp:{user_id}:{object_type}:{obj_id}'
+
+def generate_otp(user_id,object_type,obj_id):
+    otp = str(secrets.randbelow(90000) + 10000) 
+    key=otp_cache_key(user_id,object_type,obj_id)
+    cache.set(key=key,value=otp,timeout=300) # 5mins
+    return otp
+
+def verify_otp(user_id,object_type,obj_id,otp_input):
+
+    key=otp_cache_key(user_id,object_type,obj_id)
+    cached_otp=cache.get(key)
+    return cached_otp==otp_input
 
 
 class ProductsListAPIView(APIView):
@@ -53,7 +71,10 @@ class ProductsListAPIView(APIView):
         '''
         queryset=models.Product.objects.select_related(
             'category', 'brand'
-        ).prefetch_related('images')
+        ).prefetch_related('images').annotate(
+            avg_rating=Avg('reviews__rating'),
+            review_count=Count('reviews')
+        ).defer('description')
         
         paginator = StandardPagination()
         result_page = paginator.paginate_queryset(queryset, request)
@@ -76,7 +97,11 @@ class ProductDetailView(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, gene
 
     queryset=models.Product.objects\
     .select_related('category','brand','seller__user') \
-    .prefetch_related('images','variants','reviews','questions')
+    .prefetch_related('images','variants','reviews','questions')\
+    .annotate(
+        avg_rating=Avg('reviews__rating'),
+        review_count=Count('reviews')
+    )
 
     lookup_field='pk'
 
@@ -199,14 +224,22 @@ class ProductSearch(APIView):
      '''
      queryset=models.Product.objects \
         .select_related('category','brand','seller__user')\
-        .prefetch_related('variants').all()
+        .prefetch_related('variants')\
+        .annotate(
+            avg_rating=Avg('reviews__rating'),
+            review_count=Count('reviews')
+        ).defer('description').all()
      
      permission_classes=[AllowAny] 
 
      def get_queryset(self):
          return models.Product.objects \
         .select_related('category','brand','seller__user')\
-        .prefetch_related('variants').all()
+        .prefetch_related('variants')\
+        .annotate(
+            avg_rating=Avg('reviews__rating'),
+            review_count=Count('reviews')
+        ).defer('description').all()
        
         
      def get(self,request):
@@ -604,27 +637,40 @@ class ProductCreateGenericView(APIView):
 
 product_create_view=ProductCreateGenericView.as_view()
 
-class ProductDeleteView(APIView):
-    '''
-    delete a product 
+class ProductDeleteOTPRequestView(APIView):
+    """
+    Request an OTP to delete a product or one of its variants.
 
-    Allows seller of the product to delete (ProductOwner)
-    
-    '''
+    Only the seller who owns the product/variant is authorized to request
+    a deletion OTP. The generated OTP is stored in the cache for 5 minutes
+    and should be verified using the ProductDeleteConfirmView before the
+    deletion is performed.
+
+    Permissions:
+        - IsSeller
+        - IsProductOwner
+
+    URL Parameters:
+        product (int)          : Product ID (required)
+        variant (int, optional): Product Variant ID
+
+    Responses:
+        200 OK:
+            OTP generated successfully.
+
+        400 Bad Request:
+            Product ID is missing.
+
+        403 Forbidden:
+            User is not authorized to delete this product.
+
+        404 Not Found:
+            Product or Product Variant does not exist.
+    """
     permission_classes=[IsSeller,IsProductOwner]
 
-    def delete(self,request,*args,**kwargs):
-        '''
-        QueryParameters:
-            product         : Product ID
-            product_variant : Product Varaint ID
-
-        Responses:
-            200 ok : Product is deleted
-            404 Not Found : Product or Product Variant is not Found
-        
-        '''
-
+    def post(self,request,*args,**kwargs):
+    
         product_id=kwargs.get('product')
         variant_id=kwargs.get('variant')
 
@@ -632,35 +678,102 @@ class ProductDeleteView(APIView):
         if not product_id :
             return Response({"error":"Product Id is required"},status=status.HTTP_400_BAD_REQUEST)
         
-        try:               
-            product=models.Product.objects.get(id=product_id)
-            self.check_object_permissions(request,product)
+        product = get_object_or_404(models.Product,id=product_id)
+        self.check_object_permissions(request, product)
 
-        except models.Product.DoesNotExist:
-            return Response({"error":"product not Found"}, status=status.HTTP_404_NOT_FOUND)
-
-        
         if variant_id:
-            try:
-                variant=models.ProductVariant.objects.get(id=variant_id,product=product)
-                self.check_object_permissions(request, variant)
-                
-                variant.delete()
+            variant = get_object_or_404(models.ProductVariant,product=product,id=variant_id)
+            self.check_object_permissions(request, variant)
+            
+            otp=generate_otp(request.user.id,"variant",variant_id)
+            tasks.send_otp_email.delay(request.user.email, otp)
 
-                return Response({"message":"Product variant is deleted"}, status=status.HTTP_200_OK)
-
-            except models.ProductVariant.DoesNotExist:
-
-                return Response(
-                    {"error":"product variant is not Found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "OTP sent"}, status=status.HTTP_200_OK)
         
+        otp=generate_otp(request.user.id,"product",product_id)
+        tasks.send_otp_email.delay(request.user.email, otp)
 
-        product.delete()
-        user_name=self.request.user.username
-        tasks.delete_product(user_name,product_id)
+        return Response({"detail": "OTP sent"}, status=status.HTTP_200_OK)
+   
+product_delete_otp_view=ProductDeleteOTPRequestView.as_view()
 
 
-        return Response({"message": "Product deleted"}, status=200)
+class ProductDeleteConfirmView(APIView):
+    """
+    Verify the deletion OTP and permanently delete a product or product variant.
 
+    The OTP must have been generated previously using
+    ProductDeleteOTPRequestView. Once successfully verified, the cached OTP
+    is removed and the requested resource is permanently deleted.
+
+    Permissions:
+        - IsSeller
+        - IsProductOwner
+
+    URL Parameters:
+        product (int)          : Product ID (required)
+        variant (int, optional): Product Variant ID
+
+    Request Body:
+        {
+            "otp": "12345"
+        }
+
+    Responses:
+        204 No Content:
+            Product or product variant deleted successfully.
+
+        400 Bad Request:
+            - Product ID is missing.
+            - OTP is missing.
+            - OTP is invalid or expired.
+
+        403 Forbidden:
+            User is not authorized to delete this product.
+
+        404 Not Found:
+            Product or Product Variant does not exist.
+    """
+
+    permission_classes=[IsSeller,IsProductOwner]
+
+    def post(self,request,*args,**kwargs):
+
+        product_id=kwargs.get('product')
+        variant_id=kwargs.get('variant')
+        otp_input=request.data.get('otp')
+
+        if not otp_input:
+            return Response({'error':"OTP is required"},status=status.HTTP_400_BAD_REQUEST)
+
+        if not product_id :
+            return Response({"error":"Product Id is required"},status=status.HTTP_400_BAD_REQUEST)
         
-product_delete_view=ProductDeleteView.as_view()
+        product = get_object_or_404(models.Product,id=product_id)
+        self.check_object_permissions(request,product)
+
+        if variant_id:
+            variant = get_object_or_404(models.ProductVariant,product=product,id=variant_id)
+            self.check_object_permissions(request, variant)
+
+            if not verify_otp(request.user.id,"variant",variant_id,otp_input):
+                return Response({"detail":"Invalid or expired OTP"},status=status.HTTP_400_BAD_REQUEST)
+            
+            key=otp_cache_key(request.user.id,"variant",variant_id)
+            cache.delete(key)
+            
+            variant.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:  
+            if not verify_otp(request.user.id,"product",product_id,otp_input):
+                return Response({"detail":"Invalid or expired OTP"},status=status.HTTP_400_BAD_REQUEST)
+            
+            key=otp_cache_key(request.user.id,"product",product_id)
+            cache.delete(key)
+            
+            product.delete()
+            tasks.delete_product.delay(request.user.username,product_id)
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+product_delete_confirm_view=ProductDeleteConfirmView.as_view()

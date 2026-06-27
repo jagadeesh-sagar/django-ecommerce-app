@@ -2,6 +2,8 @@ from celery import shared_task
 from django.conf import settings
 import boto3
 import logging
+from django.core.mail import send_mail
+
 
 logger = logging.getLogger(__name__)
 
@@ -74,3 +76,13 @@ def delete_s3_files(self, object_keys):
         )
     except Exception as e:
         logger.error(f's3 bulk object deletion failed: {e}')
+
+
+@shared_task
+def send_otp_email(user_email, otp):
+    send_mail(
+        subject='Your OTP for product deletion',
+        message=f'Your OTP is: {otp}. Valid for 5 minutes.',
+        from_email='noreply@chatram.in',
+        recipient_list=[user_email],
+    )

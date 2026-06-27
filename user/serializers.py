@@ -170,11 +170,14 @@ class ProductSearchSerializers(serializers.ModelSerializer):
     brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)
 
     seller=serializers.PrimaryKeyRelatedField(queryset=Seller.objects.all(),write_only=True)
+    
+    avg_rating = serializers.FloatField(read_only=True)
+    review_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model=models.Product
         fields=['seller','seller_name','product_name','category_name',"images",
-                'base_price','category','brand_name','variants','brand','product_detail']
+                'base_price','category','brand_name','variants','brand','product_detail', 'avg_rating', 'review_count']
 
     def get_seller_name(self, obj):
        obj.seller.user.username
@@ -201,12 +204,15 @@ class ProductDetailSerializers(serializers.ModelSerializer):
     questions=QnA(many=True)
     whishlist=serializers.SerializerMethodField()
     can_review = serializers.SerializerMethodField()
+    
+    avg_rating = serializers.FloatField(read_only=True)
+    review_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model=models.Product
         fields=['seller','seller_name','images','product_name','category_name'
                 ,'description','base_price','category','brand_name',
-            'brand','stock_qty','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist','can_review'
+            'brand','stock_qty','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist','can_review', 'avg_rating', 'review_count'
             ]
 
     def _get_action_url(self, view_name,obj):
@@ -330,11 +336,14 @@ class ProductSerializer(serializers.ModelSerializer):
 
 )
     images = ProductImageSerializers(many=True, read_only=True)
+    
+    avg_rating = serializers.FloatField(read_only=True)
+    review_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model=models.Product
-        fields=['product_name','description','images','category_name','base_price',
-                'category','brand_name','brand','product_detail']
+        fields=['product_name','images','category_name','base_price',
+                'category','brand_name','brand','product_detail', 'avg_rating', 'review_count']
         
     # def get_product_detail(self,obj):
     #     request=self.context.get('request')

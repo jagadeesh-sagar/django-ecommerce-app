@@ -69,13 +69,13 @@ class Brand(models.Model):
 
 class Product(models.Model):
     seller = models.ForeignKey('inventory.Seller', on_delete=models.CASCADE)
-    name=models.CharField(max_length=200)
+    name=models.CharField(max_length=200, db_index=True)
     description = models.TextField(null=True, blank=True)
     base_price=models.DecimalField(max_digits=10,decimal_places=2,null=False)
     category=models.ForeignKey(Category,on_delete=models.CASCADE,related_name='products')
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='products')
     stock_qty=models.IntegerField(default=0)
-    sku = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    sku = models.CharField(max_length=100, unique=True, null=True, blank=True, db_index=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -90,7 +90,7 @@ class ProductVariant(models.Model):
     size=models.CharField(max_length=50,null=True,blank=True)
     price=models.DecimalField(max_digits=10,decimal_places=2)
     stock_qty=models.IntegerField(default=0)
-    sku=models.CharField(max_length=100,unique=True)
+    sku=models.CharField(max_length=100,unique=True, db_index=True)
     is_active=models.BooleanField(default=True)
 
     class Meta:
